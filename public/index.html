@@ -1,0 +1,1500 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LanChat</title>
+<link rel="icon" id="fav" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%235865f2%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23eb459e%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2218%22%20fill%3D%22url(%23g)%22%2F%3E%3Cpath%20d%3D%22M32%2012c-10.5%200-19%207.2-19%2016.3%200%204.8%202.4%209.100%206.300%2012L17.500%2051l9.200-4.800c1.700.4%203.500.6%205.300.6%2010.500%200%2019-7.300%2019-16.300S42.500%2012%2032%2012z%22%20fill%3D%22%23fff%22%2F%3E%3Cpath%20d%3D%22M23%2032l9-8%209%208M23%2032h18%22%20stroke%3D%22%235865f2%22%20stroke-width%3D%222.600%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20fill%3D%22none%22%2F%3E%3Cg%20fill%3D%22%235865f2%22%3E%3Ccircle%20cx%3D%2223%22%20cy%3D%2232%22%20r%3D%223.500%22%2F%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2224%22%20r%3D%223.500%22%2F%3E%3Ccircle%20cx%3D%2241%22%20cy%3D%2232%22%20r%3D%223.500%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<style>
+:root{
+  --bg1:#ffffff;--bg2:#f2f3f5;--bg3:#e3e5e8;--bgf:#ffffff;--input:#e3e5e8;--composer:#ebedef;
+  --mod-hover:rgba(116,124,138,.10);--mod-active:rgba(116,124,138,.16);--mod-sel:rgba(116,124,138,.24);
+  --text:#313338;--muted:#5c5e66;--link:#006ce7;--head1:#060607;--head2:#4e5058;--line:#d7d9dc;
+  --brand:#5865f2;--brand-h:#4752c4;--brand-a:#3c45a5;--green:#23a55a;--yellow:#f0b232;--red:#f23f43;--grey-btn:#4e5058;--grey-btn-h:#6d6f78;
+  --font:'gg sans','Noto Sans','Helvetica Neue',Helvetica,Arial,system-ui,sans-serif;--code:Consolas,Monaco,'Andale Mono',monospace;
+  --shadow3:0 8px 16px rgba(0,0,0,.24);color-scheme:light}
+:root[data-theme=dark]{
+  --bg1:#313338;--bg2:#2b2d31;--bg3:#1e1f22;--bgf:#111214;--input:#1e1f22;--composer:#383a40;
+  --mod-hover:rgba(79,84,92,.16);--mod-active:rgba(79,84,92,.24);--mod-sel:rgba(79,84,92,.32);
+  --text:#dbdee1;--muted:#949ba4;--link:#00a8fc;--head1:#f2f3f5;--head2:#b5bac1;--line:#3f4147;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--bg1);color:var(--text);font:16px/1.375 var(--font);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none;padding:0}
+[hidden]{display:none!important}
+a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
+::-webkit-scrollbar{width:14px;height:14px}::-webkit-scrollbar-thumb{background:var(--bg3);border:4px solid transparent;background-clip:padding-box;border-radius:8px;min-height:40px}
+:root[data-theme=dark] ::-webkit-scrollbar-thumb{background:#1a1b1e;background-clip:padding-box}
+::-webkit-scrollbar-track{background:transparent}
+
+.btn{background:var(--brand);color:#fff;font-size:14px;font-weight:500;min-height:38px;min-width:60px;padding:2px 16px;border-radius:3px;transition:background-color .17s ease;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--brand-h)}.btn:active{background:var(--brand-a)}
+.btn.sec{background:var(--grey-btn)}.btn.sec:hover{background:var(--grey-btn-h)}
+.btn.danger{background:var(--red)}.btn.danger:hover{background:#da373c}
+.btn.link{background:transparent;color:var(--head1)}.btn.link:hover{text-decoration:underline}
+.btn.sm{min-height:32px;padding:2px 12px}.btn.big{min-height:44px;font-size:16px;width:100%}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.ib{width:32px;height:32px;border-radius:4px;display:grid;place-items:center;color:var(--head2);font-size:18px;transition:background .1s}
+.ib:hover{background:var(--mod-sel);color:var(--head1)}
+.inp{background:var(--input);border:none;border-radius:3px;color:var(--text);font-size:16px;padding:10px;width:100%;height:40px;outline:none;display:block}
+textarea.inp{height:auto;resize:vertical;min-height:72px;line-height:1.4}
+.inp::placeholder{color:#87898c}
+.lbl{display:block;color:var(--head2);font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;margin:0 0 8px}
+.lbl i{font-style:normal;font-weight:400;text-transform:none;color:var(--muted);letter-spacing:0}
+.field{margin-bottom:16px}
+.row{display:flex;gap:8px;align-items:center}.row>.inp{flex:1;min-width:0}
+.muted{color:var(--muted);font-size:14px}
+.err{color:var(--red);font-size:14px;min-height:20px;margin-top:6px}
+.tag{display:inline-block;font-size:10px;font-weight:600;line-height:15px;padding:0 4px;border-radius:3px;background:var(--brand);color:#fff;vertical-align:middle;text-transform:uppercase;margin-left:4px}
+.tag.host{background:#c27c0e}.tag.mod{background:var(--green)}
+.code{font-family:var(--code);letter-spacing:2px;color:var(--head1)}
+
+/* ===== QOL ===== */
+#chatView{position:relative}
+.dsep{display:flex;align-items:center;gap:10px;margin:18px 16px 6px;color:var(--muted);font-size:12px;font-weight:600}
+.dsep::before,.dsep::after{content:'';flex:1;height:1px;background:var(--line)}
+.newdiv{display:flex;align-items:center;margin:14px 16px 2px;color:var(--red);font-size:12px;font-weight:700}
+.newdiv::before{content:'';flex:1;height:1px;background:var(--red)}.newdiv span{background:var(--red);color:#fff;border-radius:8px;padding:0 6px;margin-left:8px;line-height:15px;font-size:10px}
+.m.mentioned{background:rgba(250,166,26,.1);box-shadow:inset 3px 0 0 #faa61a}.m.mentioned:hover{background:rgba(250,166,26,.16)}
+#jump{position:absolute;right:28px;bottom:96px;z-index:6;background:var(--brand);color:#fff;border-radius:20px;padding:8px 14px;font-size:14px;font-weight:600;box-shadow:var(--shadow3);display:flex;gap:6px;align-items:center}
+#jump:hover{background:var(--brand-h)}
+.txt,.hd{line-height:1.45}
+.m{font-size:var(--fs,16px)}.hd b,.txt{font-size:inherit}
+.txt pre{background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:4px 0;overflow-x:auto;position:relative;white-space:pre;max-width:min(640px,100%)}
+.txt pre code{background:none;padding:0;font-size:13.5px}
+.txt pre .cpy{position:absolute;right:6px;top:6px;font-size:12px;padding:2px 8px;border-radius:4px;background:var(--bg3);color:var(--head2);display:none}.txt pre:hover .cpy{display:block}
+.txt blockquote{margin:2px 0;padding:0 10px;border-left:4px solid var(--line);color:var(--head2)}
+#ac{position:absolute;left:16px;bottom:72px;min-width:260px;max-width:420px;background:var(--bgf);border-radius:8px;box-shadow:var(--shadow3);padding:6px;z-index:25}
+#ac button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:6px 8px;border-radius:4px;color:var(--text)}
+#ac button.on,#ac button:hover{background:var(--brand);color:#fff}#ac small{color:var(--muted);margin-left:auto}#ac button.on small{color:#e0e3ff}
+#ctxm{position:fixed;z-index:1005;background:var(--bgf);border-radius:4px;padding:6px 8px;min-width:210px;box-shadow:var(--shadow3)}
+#ctxm button{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:6px 8px;border-radius:2px;color:var(--head2);font-size:14px}
+#ctxm button:hover{background:var(--brand);color:#fff}#ctxm button.d{color:var(--red)}#ctxm button.d:hover{background:var(--red);color:#fff}#ctxm .sepl{height:1px;background:var(--line);margin:4px 0}
+.ri.drag{opacity:.4}.ri.over{box-shadow:0 0 0 3px var(--brand)}.ri.muted{opacity:.7}
+.qs{place-items:start center}.qs .modal{margin-top:12vh;max-width:560px}.qs .qin{margin:16px;width:calc(100% - 32px)}
+.qs .qlist{max-height:46vh;overflow-y:auto;padding:0 8px 12px}.qs .qlist .cat{padding:10px 8px 4px}
+.qs .qi{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:8px 10px;border-radius:6px;color:var(--text)}
+.qs .qi.on{background:var(--brand);color:#fff}.qs .qi small{margin-left:auto;color:var(--muted)}.qs .qi.on small{color:#e0e3ff}
+.kbd{display:inline-block;min-width:22px;text-align:center;padding:1px 6px;border-radius:4px;background:var(--bg3);border:1px solid var(--line);font:12px var(--code);color:var(--head2)}
+.krow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.invcode{font:700 30px var(--code);letter-spacing:6px;text-align:center;color:var(--head1);padding:14px;background:var(--bg3);border-radius:8px;cursor:pointer}
+body.compact .m{padding-left:54px;padding-right:24px}body.compact .m.first{margin-top:8px;min-height:0}
+body.compact .m .av2{width:28px!important;height:28px!important;font-size:13px!important;left:14px;top:2px}body.compact .m.rep .av2{top:22px}
+@media(max-width:768px){body.compact .m{padding-right:12px}#jump{bottom:90px;right:16px}#invBtn span{display:none}}
+/* onboarding (ustawianie profilu po kliknięciu „Zacznij”) */
+#onboard{position:fixed;inset:0;z-index:50;display:grid;place-items:center;overflow-y:auto;padding:16px;background:radial-gradient(circle at 15% 0%,rgba(88,101,242,.4),transparent 50%),radial-gradient(circle at 90% 100%,rgba(235,69,158,.18),transparent 45%),var(--bg3)}
+.lcard{background:var(--bg1);border-radius:8px;padding:32px;width:min(480px,100%);box-shadow:var(--shadow3);margin:auto}
+.lcard h1{font:700 26px/1.2 Poppins,var(--font);color:var(--head1);margin:0 0 6px;text-align:center}
+.lcard .sub{text-align:center;color:var(--muted);font-size:14px;margin-bottom:24px}
+.lav{width:96px;height:96px;margin:0 auto 24px;position:relative;cursor:pointer;border-radius:50%}
+.lav .av2{width:96px;height:96px;font-size:42px}
+.lav::after{content:'📷';position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,.55);display:grid;place-items:center;font-size:26px;opacity:0;transition:opacity .15s}
+.lav:hover::after{opacity:1}
+.lav .plus{position:absolute;right:-2px;top:-2px;width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:18px;z-index:2;border:3px solid var(--bg1)}
+.sw{display:flex;gap:8px;flex-wrap:wrap}
+.sw button{width:30px;height:30px;border-radius:50%;border:3px solid transparent;box-shadow:inset 0 0 0 2px var(--bg1)}
+.sw button.on{border-color:var(--head1)}.sw input{width:30px;height:30px;border:none;padding:0;background:none;border-radius:50%;cursor:pointer}
+.seg{display:flex;background:var(--input);border-radius:4px;padding:3px;gap:3px}
+.seg button{flex:1;padding:7px;border-radius:3px;font-size:14px;font-weight:500;color:var(--head2)}
+.seg button.on{background:var(--brand);color:#fff}
+
+/* shell */
+#app{display:flex;height:100dvh}
+#left{display:flex;flex:none}
+#rail{width:72px;background:var(--bg3);padding:12px 0;display:flex;flex-direction:column;align-items:center;gap:8px;overflow-y:auto;scrollbar-width:none}
+#rail::-webkit-scrollbar{display:none}
+.ri{position:relative;width:48px;height:48px;border-radius:50%;background:var(--bg1);color:var(--head1);font-weight:600;font-size:18px;display:grid;place-items:center;transition:border-radius .2s ease,background .2s,color .2s;flex:none}
+.ri:hover,.ri.active{border-radius:16px}
+.ri:hover,.ri.active{background:var(--brand);color:#fff}
+.ri.rm{color:#fff;font-size:17px;background-size:cover;background-position:center;overflow:visible}
+.ri.rm:hover,.ri.rm.active{filter:brightness(1.12)}
+#tip{position:fixed;z-index:1004;background:var(--bgf);color:#dbdee1;font-size:14px;font-weight:500;padding:8px 12px;border-radius:4px;box-shadow:var(--shadow3);pointer-events:none;max-width:240px;transform:translateY(-50%)}
+#tip::before{content:'';position:absolute;left:-5px;top:50%;margin-top:-5px;border:5px solid transparent;border-left:0;border-right-color:var(--bgf)}
+:root:not([data-theme=dark]) #tip{background:#111214}:root:not([data-theme=dark]) #tip::before{border-right-color:#111214}
+.ri.add{color:var(--green);font-size:26px;font-weight:400}.ri.add:hover{background:var(--green);color:#fff}
+.ri.off{opacity:.55}
+.ri::before{content:'';position:absolute;left:-12px;width:4px;height:8px;border-radius:0 4px 4px 0;background:var(--head1);opacity:0;transition:height .2s,opacity .2s}
+.ri:hover::before{opacity:1}.ri.active::before{opacity:1;height:40px}
+.ri.unr::before{opacity:1;height:8px}.ri.unr.active::before{height:40px}
+.bdg{position:absolute;right:-4px;bottom:-4px;min-width:20px;height:20px;border-radius:10px;background:var(--red);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;padding:0 5px;border:3px solid var(--bg3);line-height:1}
+.ri .dotoff{position:absolute;right:-2px;top:-2px;font-size:12px}
+.rsep{width:32px;height:2px;border-radius:1px;background:var(--line);flex:none}
+#chan{width:240px;background:var(--bg2);display:flex;flex-direction:column;border-top-left-radius:8px}
+#chanHead{height:48px;padding:0 16px;display:flex;align-items:center;font-weight:600;color:var(--head1);box-shadow:0 1px 0 rgba(0,0,0,.2);flex:none;gap:8px}
+#chanHead span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chanBody{flex:1;overflow-y:auto;padding:8px 0}
+.cat{font-size:12px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--head2);padding:16px 8px 4px 16px;line-height:16px}
+.ch{display:flex;align-items:center;gap:6px;padding:6px 8px;margin:1px 8px;border-radius:4px;color:var(--muted);font-weight:500;cursor:pointer;width:calc(100% - 16px);text-align:left;min-height:34px}
+.ch:hover{background:var(--mod-sel);color:var(--text)}
+.ch.active{background:var(--mod-sel);color:var(--head1)}
+:root[data-theme=dark] .ch.active{background:rgba(79,84,92,.48)}
+.ch .ic{width:20px;text-align:center;font-size:18px;flex:none}
+.ch .grow{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch.danger:hover{background:var(--red);color:#fff}
+.ch .nb{background:var(--red);color:#fff;font-size:12px;font-weight:700;border-radius:8px;padding:0 6px;line-height:16px}
+.ch.unr{color:var(--head1);font-weight:600}
+.ch.person{min-height:44px;gap:10px;color:var(--text)}.ch.person .st{width:14px;height:14px}.ch.person .tag{margin-left:0}
+#userpanel{height:52px;background:#232428;display:flex;align-items:center;gap:2px;padding:0 8px;flex:none}
+:root:not([data-theme=dark]) #userpanel{background:var(--bg3)}
+.up-who{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:4px;border-radius:4px;cursor:pointer;text-align:left}
+.up-who:hover{background:var(--mod-sel)}
+.up-t{min-width:0;line-height:16px}.up-t b{display:block;font-size:14px;font-weight:600;color:var(--head1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.up-t span{font-size:12px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+#main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg1);position:relative}
+.view{display:flex;flex-direction:column;flex:1;min-height:0}
+.topbar{height:48px;padding:0 16px;display:flex;align-items:center;gap:8px;box-shadow:0 1px 0 rgba(0,0,0,.2);flex:none;z-index:2}
+.topbar .t{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+.topbar b{color:var(--head1);font-weight:600;white-space:nowrap}
+.topbar .sep{width:1px;height:24px;background:var(--line);flex:none}
+.topbar .topic{color:var(--muted);font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#search,#dsearch{width:150px;height:28px;font-size:14px;padding:0 8px;transition:width .2s}#search:focus{width:220px}
+#menu,#memBtn,.menuB{display:none}
+
+/* home / discover */
+.scroll{flex:1;overflow-y:auto;padding:32px 24px}
+.hwrap{max-width:760px;margin:0 auto}
+.hwrap h1{font:700 30px/1.2 Poppins,var(--font);color:var(--head1);margin:0 0 4px}
+.panel{background:var(--bg2);border-radius:8px;padding:16px;margin-top:16px}
+.panel h2{margin:0 0 12px;font-size:16px;font-weight:600;color:var(--head1)}
+.rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.rcard{display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg1);border-radius:8px;text-align:left;transition:background .15s;min-width:0;width:100%}
+.rcard:hover{background:var(--mod-sel)}
+.rcard .grow{flex:1;min-width:0}.rcard b{display:block;color:var(--head1);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty-cta{text-align:center;padding:24px 8px}.empty-cta .big{font-size:42px}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-top:20px}
+.dcard{background:var(--bg2);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;transition:transform .15s}
+.dcard:hover{transform:translateY(-2px)}
+.dcard .bn{height:72px}.dcard .ico{margin:-28px 0 0 16px;border:5px solid var(--bg2);border-radius:50%;width:56px;height:56px;position:relative;background:var(--bg2)}
+.dcard .ico .av2{width:46px;height:46px;font-size:20px}
+.dcard .bd{padding:6px 16px 16px;flex:1;display:flex;flex-direction:column;gap:2px}.dcard .bd b{color:var(--head1);font-size:16px}
+.dcard .bd .btn{margin-top:12px}
+.cmd{display:flex;gap:8px;align-items:center;background:var(--bg3);border-radius:4px;padding:6px 6px 6px 12px;margin-top:8px;font-family:var(--code);font-size:13px}
+.cmd code{flex:1;overflow-x:auto;white-space:nowrap}.cmd button{flex:none}
+.share{font:600 20px var(--code);color:var(--head1);word-break:break-all}
+#offline{flex:1;display:grid;place-items:center;padding:24px;text-align:center}
+#offline .box{max-width:380px}#offline h3{margin:8px 0 4px;color:var(--head1);font:700 22px/1.2 var(--font)}
+
+/* messages */
+#msgs{flex:1;overflow-y:auto;padding:16px 0 8px;scroll-behavior:smooth}
+.m{position:relative;padding:2px 48px 2px 72px;min-height:22px}
+.m.first{margin-top:17px;min-height:44px}.m.rep .av2{top:22px}
+.m:hover{background:var(--mod-hover)}
+.m.hl{background:rgba(250,166,26,.12)!important}
+.m .av2{position:absolute;left:16px;top:2px}
+.m.cont .gt{position:absolute;left:0;width:56px;text-align:right;font-size:11px;color:var(--muted);line-height:22px;display:none;user-select:none}
+.m.cont:hover .gt{display:block}
+.hd{line-height:22px}.hd b{font-weight:500;color:var(--head1);font-size:16px;cursor:pointer}.hd b:hover{text-decoration:underline}
+.hd time{font-size:12px;color:var(--muted);margin-left:8px;font-weight:500}
+.txt{white-space:pre-wrap;word-break:break-word;line-height:22px}
+.txt code{background:var(--bg2);padding:.1em .3em;border-radius:3px;font-family:var(--code);font-size:.875em}
+.spoiler{background:#202225;color:transparent;border-radius:3px;cursor:pointer}.spoiler.on{background:var(--mod-sel);color:inherit}
+.mention{background:rgba(88,101,242,.3);color:#c9cdfb;padding:0 2px;border-radius:3px;font-weight:500}
+:root:not([data-theme=dark]) .mention{color:#505cdc}
+.mention:hover{background:var(--brand);color:#fff}
+.media{max-width:min(400px,100%);max-height:350px;border-radius:8px;display:block;margin-top:4px;cursor:pointer;background:var(--bg2)}
+.stk{font-size:64px;line-height:1.15}.stk-l{font-size:12px;color:var(--muted)}
+img.stk-img{width:160px;height:160px;object-fit:contain;cursor:default;background:none}
+.sysmsg{display:flex;align-items:center;gap:8px;padding:2px 16px;color:var(--muted);font-size:14px;margin-top:6px}
+.sysmsg::before{content:'→';color:var(--green);font-weight:700;width:40px;text-align:center}
+.reply{display:flex;align-items:center;font-size:14px;color:var(--muted);margin-left:-40px;height:20px;overflow:hidden;white-space:nowrap;cursor:pointer;position:relative}
+.reply::before{content:'';position:absolute;left:0;top:50%;width:33px;height:10px;border-left:2px solid var(--line);border-top:2px solid var(--line);border-top-left-radius:6px}
+.reply .rs{margin-left:50px;display:flex;gap:4px;min-width:0;align-items:center;position:relative}
+.reply:hover{color:var(--text)}.reply .rn{color:var(--head2);font-weight:500}.reply .rt{overflow:hidden;text-overflow:ellipsis}
+.rx{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}.rx:empty{display:none}
+.rx button{background:var(--bg2);border:1px solid transparent;border-radius:8px;padding:2px 6px;display:inline-flex;gap:6px;align-items:center;font-size:16px;line-height:20px}
+.rx button span{font-size:14px;font-weight:500;color:var(--text)}
+.rx button:hover{border-color:rgba(255,255,255,.1)}
+.rx button.me{background:rgba(88,101,242,.3);border-color:var(--brand)}
+.tools{position:absolute;right:16px;top:-16px;display:none;background:var(--bg1);border:1px solid var(--line);border-radius:8px;padding:2px;box-shadow:0 0 0 1px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.2);z-index:3}
+.m:hover .tools{display:flex}
+.tools button{width:32px;height:32px;display:grid;place-items:center;border-radius:4px;font-size:16px;color:var(--head2)}
+.tools button:hover{background:var(--mod-sel);color:var(--head1)}.tools button.d:hover{color:var(--red)}
+.empty{padding:16px;color:var(--muted)}.empty h3{margin:0 0 4px;color:var(--head1);font:700 28px/1.2 var(--font)}
+
+.av2{position:relative;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;flex:none;user-select:none;background-size:cover;background-position:center}
+.st{position:absolute;right:-3px;bottom:-3px;width:16px;height:16px;border-radius:50%;border:3px solid var(--bg2);background:var(--green)}
+.st.idle{background:var(--yellow)}.st.dnd{background:var(--red)}
+.up-who .st{border-color:#232428}
+
+#typing{height:24px;padding:0 16px 0 72px;font-size:14px;font-weight:500;color:var(--head1);display:flex;align-items:center;gap:6px;flex:none}
+#typing i{display:inline-flex;gap:2px}#typing i b{width:4px;height:4px;border-radius:50%;background:var(--head1);opacity:.4;animation:bl 1.2s infinite}
+#typing i b:nth-child(2){animation-delay:.2s}#typing i b:nth-child(3){animation-delay:.4s}
+@keyframes bl{0%,60%,100%{opacity:.3}30%{opacity:1}}
+#composer{padding:0 16px 24px;position:relative;flex:none}
+#replybar{display:flex;align-items:center;gap:8px;background:var(--bg2);border-radius:8px 8px 0 0;padding:8px 16px 16px;font-size:14px;color:var(--head2);margin-bottom:-8px}
+#replybar span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#replybar b{color:var(--head1)}
+#box{background:var(--composer);border-radius:8px;display:flex;align-items:flex-end;padding:0 10px 0 6px;position:relative}
+#input{flex:1;background:none;border:none;outline:none;resize:none;padding:11px 10px;min-height:44px;max-height:50vh;line-height:22px;color:var(--text)}
+#input::placeholder{color:var(--muted)}
+#box .ib{height:44px;width:36px}#box #send{display:none;color:var(--brand)}
+#pop{position:absolute;bottom:72px;right:16px;width:min(420px,calc(100% - 32px));background:var(--bg2);border:1px solid var(--bgf);border-radius:8px;box-shadow:var(--shadow3);z-index:20;display:flex;flex-direction:column;max-height:min(440px,60vh)}
+:root:not([data-theme=dark]) #pop{border-color:var(--line)}
+#pop .tabs{display:flex;padding:4px 8px 0;gap:2px;flex:none;border-bottom:1px solid var(--line);overflow-x:auto}
+#pop .tabs button{padding:6px 10px;font-size:18px;border-radius:4px 4px 0 0;border-bottom:2px solid transparent}
+#pop .tabs button.on{border-bottom-color:var(--brand)}#pop .tabs button:hover{background:var(--mod-hover)}
+#pop .grid{overflow:auto;padding:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:2px;align-content:start}
+#pop .grid.big{grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
+#pop .grid.gifs{grid-template-columns:repeat(2,1fr);gap:8px}
+#pop .grid button{font-size:26px;padding:4px;border-radius:4px;line-height:1.2}#pop .grid button:hover{background:var(--mod-sel)}
+#pop .grid.big button{font-size:48px;border-radius:8px}
+#pop .grid.gifs img{width:100%;border-radius:4px;cursor:pointer}
+#pop img.s{width:80px;height:80px;object-fit:contain;cursor:pointer;border-radius:8px}#pop img.s:hover{background:var(--mod-sel)}
+#pop .inp{margin:8px;width:calc(100% - 16px);flex:none}#pop .cat{padding:8px 12px 0}
+
+#members{display:none;width:240px;background:var(--bg2);flex:none;overflow-y:auto;padding:8px 0}
+body.in-room.mem-open #members{display:block}
+#members .cat{padding:24px 8px 4px 16px}#members .cat:first-child{padding-top:16px}
+.mem{display:flex;align-items:center;gap:12px;padding:6px 8px;margin:1px 8px;border-radius:4px;cursor:pointer;width:calc(100% - 16px);text-align:left;color:var(--muted)}
+.mem:hover{background:var(--mod-sel);color:var(--text)}
+.mem b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px}
+
+#ucard{position:fixed;z-index:1001;width:340px;max-width:calc(100vw - 16px);box-shadow:var(--shadow3)}
+:root:not([data-theme=dark]) .pcard{background:#fff;color:#313338;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.pcard{background:#232428;border-radius:8px;overflow:hidden;color:#dbdee1}
+.pcard .ub{height:60px}
+.pcard .uav{margin:-40px 0 0 16px;border:6px solid #232428;border-radius:50%;width:92px;height:92px;position:relative;background:#232428}
+:root:not([data-theme=dark]) .pcard .uav{border-color:#fff;background:#fff}
+.pcard .uav .av2{width:80px;height:80px;font-size:36px}.pcard .uav .st{width:24px;height:24px;border-width:5px;border-color:#232428;right:0;bottom:0}
+:root:not([data-theme=dark]) .pcard .uav .st{border-color:#fff}
+.pcard .ubody{margin:8px 16px 16px;padding:12px;background:#111214;border-radius:8px}
+:root:not([data-theme=dark]) .pcard .ubody{background:#f2f3f5}
+.pcard .un{font-size:20px;font-weight:600;color:var(--head1)}.pcard .us{font-size:14px;color:var(--muted)}
+:root:not([data-theme=dark]) .pcard .un{color:#060607}
+.pcard .bio{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:14px;white-space:pre-wrap;word-break:break-word}
+.pcard .bio .lbl{margin-bottom:4px}
+.ctx{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.ctx button{display:flex;gap:8px;width:100%;text-align:left;padding:6px 8px;border-radius:2px;color:var(--head2);font-size:14px}
+.ctx button:hover{background:var(--brand);color:#fff}.ctx button.d{color:var(--red)}.ctx button.d:hover{background:var(--red);color:#fff}
+#qr{position:fixed;z-index:1001;background:var(--bgf);border-radius:8px;padding:4px;display:flex;gap:2px;box-shadow:var(--shadow3)}
+#qr button{font-size:22px;width:36px;height:36px;border-radius:4px}#qr button:hover{background:var(--mod-sel)}
+
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:grid;place-items:center;z-index:1002;padding:16px}
+.modal{background:var(--bg1);border-radius:4px;box-shadow:0 0 0 1px rgba(0,0,0,.15),0 4px 8px rgba(0,0,0,.2);max-width:440px;width:100%;max-height:92dvh;display:flex;flex-direction:column;animation:pop .15s ease}
+.modal.wide{max-width:640px}.modal.xl{max-width:760px}
+@keyframes pop{from{transform:scale(.92);opacity:0}}
+.mhead{padding:16px;text-align:center}.mhead h2{margin:0;font-size:20px;font-weight:600;color:var(--head1)}.mhead p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.mbody{padding:0 16px 20px;overflow-y:auto;flex:1}
+.mfoot{background:var(--bg2);padding:16px;display:flex;justify-content:flex-end;gap:8px;border-radius:0 0 4px 4px}
+.choice{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px;border:1px solid var(--line);border-radius:8px;margin-top:10px;transition:background .15s,border-color .15s}
+.choice:hover{background:var(--mod-sel);border-color:var(--brand)}.choice .ci{font-size:30px}.choice b{display:block;color:var(--head1)}
+.chk{display:flex;gap:10px;align-items:center;margin:8px 0;cursor:pointer;color:var(--text)}.chk input{width:18px;height:18px;accent-color:var(--brand)}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}
+.set{display:flex;gap:20px}.setnav{width:150px;flex:none}
+.setnav button{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:4px;color:var(--head2);font-weight:500;margin-bottom:2px}
+.setnav button:hover{background:var(--mod-hover)}.setnav button.on{background:var(--mod-sel);color:var(--head1)}
+.setbody{flex:1;min-width:0}
+.opt{display:flex;gap:10px}.opt button{flex:1;border:2px solid var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--head2);font-weight:500}
+.opt button.on{border-color:var(--brand);color:var(--head1)}
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:grid;place-items:center;z-index:1002;cursor:zoom-out}
+#lightbox img{max-width:94vw;max-height:94vh;border-radius:4px}
+#toast{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);background:var(--bgf);color:#dbdee1;padding:10px 16px;border-radius:4px;z-index:1003;font-size:14px;font-weight:500;box-shadow:var(--shadow3);animation:pop .15s}
+:root:not([data-theme=dark]) #toast{background:#111214}
+#drop{position:absolute;inset:8px;background:rgba(88,101,242,.2);border:2px dashed var(--brand);border-radius:8px;display:grid;place-items:center;font-size:20px;font-weight:600;color:var(--head1);z-index:40;pointer-events:none}
+
+.logo{width:32px;height:32px;display:block;flex:none}
+#railHome{background:none!important;padding:0;overflow:hidden;border-radius:16px}#railHome .logo{width:48px;height:48px}
+#railHome:hover{filter:brightness(1.12)}
+#chanLogo{display:flex}#chanLogo .logo{width:24px;height:24px}
+.herologo{display:flex;justify-content:center;margin-bottom:22px}.herologo .logo{width:76px;height:76px;filter:drop-shadow(0 10px 30px rgba(88,101,242,.6))}
+.olog{display:flex;justify-content:center;margin-bottom:14px}.olog .logo{width:54px;height:54px}
+.sbrand .logo{width:32px;height:32px}.sfoot .fl{display:inline-flex;align-items:center;gap:8px}.sfoot .fl .logo{width:20px;height:20px}
+.mk-rail span.lg{background:none;border-radius:0}.mk-rail span.lg .logo{width:44px;height:44px}
+/* ===== strona startowa (landing) – zawsze ciemna, własna nawigacja ===== */
+#site{--bg1:#313338;--bg2:#2b2d31;--bg3:#1e1f22;--bgf:#111214;--input:#1e1f22;--mod-hover:rgba(79,84,92,.16);--mod-sel:rgba(79,84,92,.32);--text:#dbdee1;--muted:#949ba4;--link:#00a8fc;--head1:#f2f3f5;--head2:#b5bac1;--line:#3f4147;color-scheme:dark;color:var(--text)}
+#site{position:fixed;inset:0;z-index:40;overflow-y:auto;background:#17181c;scroll-behavior:smooth}
+.snav{position:sticky;top:0;z-index:5;background:rgba(23,24,28,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.07)}
+.sin{max-width:1120px;margin:0 auto;padding:0 20px;height:66px;display:flex;align-items:center;gap:24px}
+.sbrand{font:700 21px Poppins,var(--font);color:#fff;display:flex;gap:8px;align-items:center;text-decoration:none!important;white-space:nowrap}
+.slinks{display:flex;gap:4px;flex:1}.slinks a{color:#c4c9d4;padding:8px 14px;border-radius:8px;font-weight:500;font-size:15px;text-decoration:none!important;white-space:nowrap}
+.slinks a:hover,.slinks a.on{background:rgba(255,255,255,.08);color:#fff}
+.sb{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 28px;border-radius:30px;font-weight:600;font-size:17px;transition:transform .15s,background .15s,box-shadow .15s;text-decoration:none!important;cursor:pointer;white-space:nowrap}
+.sb:hover{transform:translateY(-2px)}
+.sb.p{background:#fff;color:#23272a}.sb.p:hover{box-shadow:0 8px 28px rgba(255,255,255,.2)}
+.sb.s{background:rgba(255,255,255,.1);color:#fff}.sb.s:hover{background:rgba(255,255,255,.18)}
+.sb.n{padding:9px 20px;font-size:15px;background:var(--brand);color:#fff}.sb.n:hover{background:var(--brand-h);transform:none}
+.hero{position:relative;overflow:hidden;padding:84px 20px 0;text-align:center;background:radial-gradient(900px 520px at 50% -8%,rgba(88,101,242,.6),transparent 70%),radial-gradient(560px 380px at 92% 28%,rgba(235,69,158,.24),transparent 70%),radial-gradient(520px 380px at 4% 55%,rgba(0,168,252,.2),transparent 70%)}
+.pill{display:inline-block;padding:6px 14px;border-radius:20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#c4c9d4;font-size:14px;margin-bottom:22px}
+.hero h1{font:700 clamp(36px,6.4vw,68px)/1.06 Poppins,var(--font);color:#fff;margin:0 auto 20px;max-width:900px;letter-spacing:-.025em}
+.hero h1 em{font-style:normal;background:linear-gradient(90deg,#8ea1ff,#eb459e);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.lead{font-size:clamp(16px,2vw,20px);line-height:1.55;color:#c4c9d4;max-width:660px;margin:0 auto 34px}
+.hbtn{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.mock{position:relative;width:min(960px,100%);height:400px;margin:60px auto 0;border-radius:14px 14px 0 0;background:#313338;display:flex;text-align:left;overflow:hidden;box-shadow:0 -10px 80px rgba(88,101,242,.35),0 30px 80px rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.1);border-bottom:0;user-select:none}
+.mk-rail{width:68px;background:#1e1f22;padding:12px 0;display:flex;flex-direction:column;align-items:center;gap:8px;flex:none}
+.mk-rail span{position:relative;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px}
+.mk-rail span.on{border-radius:14px}.mk-rail span.on::before{content:'';position:absolute;left:-12px;width:4px;height:36px;border-radius:0 4px 4px 0;background:#fff}
+.mk-rail span em{position:absolute;right:-4px;bottom:-4px;min-width:18px;height:18px;border-radius:9px;background:#f23f43;font-style:normal;font-size:11px;display:grid;place-items:center;border:3px solid #1e1f22;padding:0 4px}
+.mk-rail hr{width:30px;border:0;height:2px;background:#3f4147;margin:0}.mk-rail .plus{background:#313338;color:#23a55a;font-size:22px;font-weight:400}
+.mk-side{width:210px;background:#2b2d31;flex:none;display:flex;flex-direction:column}
+.mk-h{height:46px;padding:0 16px;display:flex;align-items:center;font-weight:600;color:#f2f3f5;box-shadow:0 1px 0 rgba(0,0,0,.25)}
+.mk-cat{font-size:11px;font-weight:700;text-transform:uppercase;color:#b5bac1;padding:16px 16px 4px}
+.mk-c{margin:1px 8px;padding:6px 8px;border-radius:4px;color:#949ba4;font-weight:500;font-size:15px}.mk-c.on{background:rgba(79,84,92,.48);color:#fff}
+.mk-up{margin-top:auto;height:50px;background:#232428;display:flex;align-items:center;gap:8px;padding:0 10px}
+.mk-up i,.mk-msg i,.mk-mem i{font-style:normal;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;flex:none}
+.mk-up b{display:block;font-size:13px;color:#f2f3f5;line-height:15px}.mk-up small{font-size:11px;color:#949ba4}
+.mk-main{flex:1;min-width:0;display:flex;flex-direction:column;padding-bottom:14px}
+.mk-top{height:46px;padding:0 16px;display:flex;align-items:center;gap:8px;font-weight:600;color:#f2f3f5;box-shadow:0 1px 0 rgba(0,0,0,.25)}.mk-top small{font-weight:400;color:#949ba4}
+.mk-msg{display:flex;gap:12px;padding:8px 16px}.mk-msg i{width:40px;height:40px;font-size:16px}
+.mk-msg b{font-weight:500;font-size:15px}.mk-msg small{color:#949ba4;font-size:11px;margin-left:6px}.mk-msg p{margin:2px 0 0;color:#dbdee1;font-size:15px;line-height:1.35}
+.mk-rx{display:inline-block;margin:6px 6px 0 0;padding:1px 8px;border-radius:8px;background:rgba(88,101,242,.3);border:1px solid #5865f2;font-size:13px;color:#dbdee1}
+.mk-stk{font-size:46px;line-height:1.1;margin-top:2px}
+.mk-in{margin:auto 16px 0;background:#383a40;border-radius:8px;padding:11px 14px;color:#949ba4;font-size:15px}
+.mk-mem{width:190px;background:#2b2d31;flex:none;padding:12px 8px}.mk-mem div{display:flex;align-items:center;gap:10px;padding:5px 8px;color:#949ba4;font-size:14px;font-weight:500}
+.mk-mem .mk-cat{padding:10px 8px 4px}
+.stats{max-width:1120px;margin:0 auto;padding:48px 20px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;text-align:center}
+.stats b{display:block;font:700 clamp(30px,4vw,44px) Poppins,var(--font);color:#fff;letter-spacing:-.02em}.stats span{color:#a8afbd;font-size:15px}
+.lsec{max-width:1120px;margin:0 auto;padding:88px 20px 0}
+.lsec h2{font:700 clamp(28px,4.2vw,42px)/1.15 Poppins,var(--font);color:#fff;text-align:center;margin:0 0 14px;letter-spacing:-.02em}
+.lsec .lead{text-align:center;color:#a8afbd;max-width:640px;margin:0 auto 48px;font-size:17px;line-height:1.55}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.fcard{background:#1f2024;border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:28px;transition:transform .2s,border-color .2s}
+.fcard:hover{transform:translateY(-4px);border-color:rgba(88,101,242,.6)}
+.fcard .fi{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:26px;margin-bottom:16px;background:linear-gradient(135deg,rgba(88,101,242,.35),rgba(235,69,158,.25))}
+.fcard h3{margin:0 0 8px;color:#fff;font-size:19px;font-weight:700}.fcard p{margin:0;color:#a8afbd;line-height:1.55;font-size:15.5px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;counter-reset:s}
+.step{position:relative;padding:28px;border-radius:18px;background:#1f2024;border:1px solid rgba(255,255,255,.07)}
+.step::before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--brand);color:#fff;font:700 18px Poppins,var(--font);margin-bottom:16px}
+.step h3{margin:0 0 8px;color:#fff;font-size:19px}.step p{margin:0;color:#a8afbd;line-height:1.55;font-size:15.5px}
+.cta{max-width:1120px;margin:96px auto 0;padding:0 20px}
+.ctabox{border-radius:24px;padding:60px 28px;text-align:center;background:radial-gradient(600px 300px at 20% 0%,rgba(255,255,255,.18),transparent 70%),linear-gradient(135deg,#5865f2,#7b4be8 60%,#c040a8)}
+.ctabox h2{font:700 clamp(26px,4vw,40px)/1.15 Poppins,var(--font);color:#fff;margin:0 0 12px}.ctabox p{color:rgba(255,255,255,.88);margin:0 auto 28px;max-width:560px;font-size:17px}
+.sfoot{max-width:1120px;margin:64px auto 0;padding:32px 20px 48px;border-top:1px solid rgba(255,255,255,.08);display:flex;gap:16px;justify-content:space-between;flex-wrap:wrap;color:#7d8493;font-size:14px}
+.sfoot a{color:#a8afbd;margin-left:18px}
+.phero{padding:72px 20px 8px;text-align:center;background:radial-gradient(800px 360px at 50% -20%,rgba(88,101,242,.5),transparent 70%)}
+.phero h1{font:700 clamp(32px,5.4vw,54px)/1.1 Poppins,var(--font);color:#fff;margin:0 0 14px;letter-spacing:-.02em}.phero p{color:#c4c9d4;max-width:620px;margin:0 auto;font-size:18px;line-height:1.55}
+.hostgrid{max-width:880px;margin:44px auto 0;padding:0 20px;display:flex;flex-direction:column;gap:20px}
+.hstep{display:flex;gap:20px;padding:28px;border-radius:18px;background:#1f2024;border:1px solid rgba(255,255,255,.07)}
+.hstep .n{flex:none;width:44px;height:44px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font:700 19px Poppins,var(--font)}
+.hstep h3{margin:0 0 6px;color:#fff;font-size:20px}.hstep p{margin:0 0 4px;color:#a8afbd;line-height:1.55}.hstep>div{min-width:0;flex:1}
+.ostabs{display:inline-flex;gap:4px;background:#111214;border-radius:10px;padding:4px;margin:14px 0 4px}
+.ostabs button{padding:8px 16px;border-radius:7px;color:#b5bac1;font-weight:600;font-size:14px}.ostabs button.on{background:var(--brand);color:#fff}
+.note{margin:14px 0 0;padding:14px 16px;border-radius:12px;background:rgba(240,178,50,.1);border:1px solid rgba(240,178,50,.35);color:#e9d8a6;font-size:14.5px;line-height:1.5}
+.note.info{background:rgba(88,101,242,.12);border-color:rgba(88,101,242,.4);color:#c9cdfb}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:6px}
+.facts div{padding:18px;border-radius:14px;background:#1f2024;border:1px solid rgba(255,255,255,.07);color:#a8afbd;font-size:15px;line-height:1.5}.facts b{display:block;color:#fff;margin-bottom:4px}
+@media(max-width:820px){.mk-mem{display:none}.mock{height:360px}}
+@media(max-width:620px){.mk-side{display:none}.slinks{display:none}.sbrand{flex:1}.sin{gap:10px}.hstep{flex-direction:column;gap:12px}.hero{padding-top:56px}.sb{padding:12px 22px;font-size:16px}.sfoot a{margin:0 14px 0 0}}
+@media(max-width:1200px){#memBtn{display:grid}}
+@media(max-width:768px){
+  #menu,.menuB{display:grid}
+  #left{position:fixed;z-index:30;top:0;bottom:0;left:0;transform:translateX(-100%);transition:transform .2s;box-shadow:var(--shadow3)}
+  body.left-open #left{transform:none}
+  #members{position:fixed;right:0;top:0;bottom:0;z-index:30;transform:translateX(100%);transition:transform .2s;display:block;box-shadow:var(--shadow3)}
+  body.in-room.mem-open #members{transform:none}
+  .m{padding-right:16px}.m .tools{right:8px}
+  #search,#dsearch{width:90px}#search:focus{width:130px}
+  #box #send{display:grid}
+  .scroll{padding:16px}.ch{min-height:40px}.ib{width:40px;height:40px}#box .ib{width:38px;height:44px}
+  .topbar .topic,.topbar .sep{display:none}
+  .set{flex-direction:column;gap:10px}.setnav{width:100%;display:flex;gap:4px;overflow-x:auto}.setnav button{width:auto;white-space:nowrap}
+  .lcard{padding:24px 20px}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="lcg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5865f2"/><stop offset="1" stop-color="#eb459e"/></linearGradient></defs>
+<symbol id="lc-logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="url(#lcg)"/><path d="M32 12c-10.5 0-19 7.2-19 16.3 0 4.8 2.4 9.1 6.3 12L17.5 51l9.2-4.8c1.7.4 3.5.6 5.3.6 10.5 0 19-7.3 19-16.3S42.5 12 32 12z" fill="#fff"/><path d="M23 32l9-8 9 8M23 32h18" stroke="#5865f2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><g fill="#5865f2"><circle cx="23" cy="32" r="3.5"/><circle cx="32" cy="24" r="3.5"/><circle cx="41" cy="32" r="3.5"/></g></symbol></svg>
+
+<!-- STRONA STARTOWA (landing) – własna nawigacja, osobno od aplikacji -->
+<div id="site" hidden>
+  <header class="snav"><div class="sin">
+    <a class="sbrand" href="#/"><svg class="logo"><use href="#lc-logo"/></svg> LanChat</a>
+    <nav class="slinks"><a href="#/features" data-p="features">Funkcje</a><a href="#/how" data-p="how">Jak to działa</a><a href="#/host" data-p="host" class="keep">Hostuj własny</a></nav>
+    <button class="sb n" id="sCta">Zacznij czatować</button>
+  </div></header>
+
+  <main id="sHome">
+    <section class="hero">
+      <div class="herologo"><svg class="logo"><use href="#lc-logo"/></svg></div><span class="pill">Czat dla Twojej sieci lokalnej</span>
+      <h1>Rozmawiaj ze znajomymi. <em>Bez internetu, bez kont, bez instalacji.</em></h1>
+      <p class="lead">LanChat to prywatny czat w stylu Discorda, który działa w Twojej sieci. Jedna osoba go uruchamia, reszta po prostu otwiera link w przeglądarce.</p>
+      <div class="hbtn"><button class="sb p" id="sHero1">Zacznij czatować →</button><a class="sb s" href="#/host">Hostuj własny</a></div>
+      <div class="mock" aria-hidden="true">
+        <div class="mk-rail"><span class="lg"><svg class="logo"><use href="#lc-logo"/></svg></span><hr><span class="on" style="background:#c0392b">WG</span><span style="background:#2e86c1">M<em>3</em></span><span style="background:#27ae60">LAN</span><span class="plus">+</span><span class="plus" style="font-size:18px">🧭</span></div>
+        <div class="mk-side"><div class="mk-h">Wieczór gier</div><div class="mk-cat">Kanały tekstowe</div><div class="mk-c on"># czat</div><div class="mk-cat">Zaproszenie</div><div class="mk-c">🔑 K7P-4XM</div><div class="mk-c">🔗 Link dla gości</div><div class="mk-up"><i style="background:#eb459e">T</i><div><b>Tomek</b><small>Host pokoju</small></div></div></div>
+        <div class="mk-main"><div class="mk-top"><span style="color:#949ba4;font-size:22px">#</span> czat <small>Wieczór gier</small></div>
+          <div class="mk-msg"><i style="background:#eb459e">T</i><div><b style="color:#eb459e">Tomek</b><small>20:14</small><p>Kto dziś gra? Serwer już stoi 🔥</p></div></div>
+          <div class="mk-msg"><i style="background:#3ba55d">A</i><div><b style="color:#3ba55d">Ala</b><small>20:15</small><p>Ja! Weszłam z telefonu, nic nie instalowałam 😄</p><span class="mk-rx">👍 3</span><span class="mk-rx">🔥 2</span></div></div>
+          <div class="mk-msg"><i style="background:#00a8fc">K</i><div><b style="color:#00a8fc">Kuba</b><small>20:15</small><div class="mk-stk">🎉</div></div></div>
+          <div class="mk-in">Napisz wiadomość</div></div>
+        <div class="mk-mem"><div class="mk-cat">Prowadzący — 1</div><div><i style="background:#eb459e">T</i>Tomek</div><div class="mk-cat">Użytkownicy — 2</div><div><i style="background:#3ba55d">A</i>Ala</div><div><i style="background:#00a8fc">K</i>Kuba</div></div>
+      </div>
+    </section>
+
+    <div class="stats"><div><b>0</b><span>kont w chmurze</span></div><div><b>1</b><span>komenda do uruchomienia</span></div><div><b>0</b><span>instalacji u znajomych</span></div><div><b>100%</b><span>danych u Ciebie</span></div></div>
+
+    <section class="lsec" id="s-features"><h2>Wszystko, czego chcesz od czatu</h2><p class="lead">Znajome wygody z Discorda, ale bez chmury. Wszystko działa lokalnie i zostaje w Twojej sieci.</p>
+      <div class="fgrid">
+        <div class="fcard"><div class="fi">🏠</div><h3>Działa w Twojej sieci</h3><p>Bez serwera w internecie i bez zakładania kont. Rozmowy nie opuszczają Waszej sieci.</p></div>
+        <div class="fcard"><div class="fi">🧭</div><h3>Wiele pokoi naraz</h3><p>Pasek pokoi po lewej jak serwery na Discordzie: własne ikony, plakietki nieprzeczytanych, odkrywanie publicznych pokoi.</p></div>
+        <div class="fcard"><div class="fi">📱</div><h3>Zero instalacji dla znajomych</h3><p>Wystarczy link w przeglądarce – na komputerze, tablecie i telefonie. Kod pokoju lub zaproszenie i już.</p></div>
+        <div class="fcard"><div class="fi">💾</div><h3>Profil i pokoje zapisane</h3><p>Nick, zdjęcie i opis czekają, gdy wrócisz. Historia pokoi przetrwa restart aplikacji.</p></div>
+        <div class="fcard"><div class="fi">🎭</div><h3>GIF-y, naklejki, emotki</h3><p>Reakcje, odpowiedzi, edycja, linki z podglądem obrazów, formatowanie i wklejanie zdjęć prosto ze schowka.</p></div>
+        <div class="fcard"><div class="fi">🛡️</div><h3>Role i moderacja</h3><p>Admin, host pokoju i moderatorzy: wyciszanie, wyrzucanie, bany, tryb powolny i hasło do pokoju.</p></div>
+      </div></section>
+
+    <section class="lsec" id="s-how"><h2>Jak to działa</h2><p class="lead">Trzy kroki. Tylko pierwszy wymaga uruchomienia czegokolwiek – i robi to jedna osoba.</p>
+      <div class="steps">
+        <div class="step"><h3>Admin uruchamia LanChat</h3><p>Jedna komenda albo dwuklik na pliku. Bez uprawnień administratora i bez zmian w ustawieniach sieci.</p></div>
+        <div class="step"><h3>Znajomi otwierają link</h3><p>Admin dostaje gotowy adres, np. <b>192.168.1.20:7777</b>. Reszta otwiera go w przeglądarce i ustawia nick.</p></div>
+        <div class="step"><h3>Tworzycie pokoje i piszecie</h3><p>Plus tworzy pokój lub dołącza kodem, kompas pokazuje publiczne pokoje. Wszystko zapisuje się samo.</p></div>
+      </div></section>
+
+    <section class="lsec"><h2>Trzy role, jasne zasady</h2><p class="lead">Każdy wie, co może i za co odpowiada.</p>
+      <div class="fgrid">
+        <div class="fcard"><div class="fi">🖥️</div><h3>Admin</h3><p>Osoba, która uruchomiła LanChat. Widzi wszystkie pokoje, ustawia limity, banuje i zamyka pokoje.</p></div>
+        <div class="fcard"><div class="fi">👑</div><h3>Host pokoju</h3><p>Twórca pokoju. Nadaje moderatorów, ustawia temat, hasło, ikonę i własne naklejki.</p></div>
+        <div class="fcard"><div class="fi">💬</div><h3>Użytkownik</h3><p>Każdy z kodem lub linkiem. Pisze, reaguje, wysyła GIF-y i zdjęcia oraz edytuje własne wiadomości.</p></div>
+      </div></section>
+
+    <section class="cta"><div class="ctabox"><h2>Gotowy na własny czat?</h2><p>Ustaw nick i zdjęcie w pół minuty albo zobacz, jak postawić własny LanChat jedną komendą.</p>
+      <div class="hbtn"><button class="sb p" id="sHero2">Zacznij czatować →</button><a class="sb s" href="#/host">Hostuj własny</a></div></div></section>
+    <footer class="sfoot"><span class="fl"><svg class="logo"><use href="#lc-logo"/></svg> LanChat · czat w sieci lokalnej</span><span><a href="#/features">Funkcje</a><a href="#/how">Jak to działa</a><a href="#/host">Hostuj własny</a></span></footer>
+  </main>
+
+  <main id="sHost" hidden>
+    <section class="phero"><span class="pill">🖥️ Dla osoby, która uruchamia</span><h1>Hostuj własny LanChat</h1><p>Jedna komenda. Bez uprawnień administratora i bez ruszania ustawień sieci. Znajomi nie muszą nic instalować.</p></section>
+    <div class="hostgrid">
+      <div class="hstep"><div class="n">1</div><div><h3>Zainstaluj i uruchom</h3><p>Wklej komendę w terminalu. Plik trafi do Twojego profilu użytkownika i od razu się uruchomi.</p>
+        <div class="ostabs" id="osTabs"><button data-os="win">Windows</button><button data-os="linux">Linux</button><button data-os="mac">macOS</button></div>
+        <div id="osBody"></div></div></div>
+      <div class="hstep"><div class="n">2</div><div><h3>Wyślij znajomym link</h3><p>Po uruchomieniu LanChat otworzy się w przeglądarce. Na stronie głównej znajdziesz gotowy adres do wysłania – znajomi otwierają go bez instalowania czegokolwiek.</p></div></div>
+      <div class="hstep"><div class="n">3</div><div><h3>Twórzcie pokoje</h3><p>Plus tworzy pokój albo dołącza kodem, kompas pokazuje publiczne pokoje. Profile, pokoje i historia zapisują się na Twoim komputerze.</p></div></div>
+      <div class="note"><b>Zapora Windows.</b> Przy pierwszym uruchomieniu Windows może zapytać o zgodę na dostęp do sieci. Bez uprawnień administratora możesz jej nie móc udzielić – wtedy użyj komputera, na którym da się to zatwierdzić. Znajomi łączą się wychodząco i niczego nie potrzebują.</div>
+      <div class="facts"><div><b>📁 Gdzie są dane?</b>W folderze <code>.lanchat</code> w Twoim profilu: konta, pokoje, historia i obrazy.</div><div><b>🌐 Czy potrzebny jest internet?</b>Nie. Wystarczy wspólna sieć. Internet przydaje się tylko do wyszukiwarki GIF-ów.</div><div><b>🧹 Jak to usunąć?</b>Skasuj plik programu i folder <code>.lanchat</code>. Nic więcej nie zostaje w systemie.</div></div>
+      <div style="text-align:center;margin:12px 0 40px"><button class="sb p" id="sHost1">Zacznij czatować →</button></div>
+    </div>
+    <footer class="sfoot"><span class="fl"><svg class="logo"><use href="#lc-logo"/></svg> LanChat · czat w sieci lokalnej</span><span><a href="#/">Strona główna</a><a href="#/features">Funkcje</a></span></footer>
+  </main>
+</div>
+
+<!-- ONBOARDING: krok „Zacznij” – nick, zdjęcie, opis -->
+<div id="onboard" hidden>
+  <div class="lcard" id="lcard">
+    <div id="lMain">
+      <button class="btn link sm" id="lToSite" style="margin:-12px 0 8px -12px">← Strona startowa</button>
+      <div class="olog"><svg class="logo"><use href="#lc-logo"/></svg></div>
+      <h1>Witaj w LanChat 👋</h1>
+      <div class="sub">Ustaw swój profil. Zapiszemy go na serwerze, więc wrócisz do niego z każdego urządzenia.</div>
+      <div class="lav" id="lAvWrap" title="Dodaj zdjęcie profilowe"><div id="lAv"></div><span class="plus">+</span></div>
+      <div class="field"><label class="lbl" for="lName">Nick</label><input id="lName" class="inp" maxlength="24" placeholder="Jak mamy Cię nazywać?" autocomplete="off"></div>
+      <div class="field"><label class="lbl" for="lBio">O mnie <i>(opcjonalnie)</i></label><textarea id="lBio" class="inp" maxlength="190" placeholder="Kilka słów o Tobie"></textarea></div>
+      <div class="field"><label class="lbl">Kolor nicku</label><div class="sw" id="lSw"></div></div>
+      <div class="field"><label class="lbl">Motyw</label><div class="seg" id="lTheme"><button data-v="dark">🌙 Ciemny</button><button data-v="light">☀️ Jasny</button></div></div>
+      <div class="err" id="lErr"></div>
+      <button class="btn big" id="lGo">Zaczynij</button>
+      <div style="text-align:center;margin-top:12px"><button class="btn link sm" id="lRestore">Mam już konto</button></div>
+    </div>
+    <div id="lRest" hidden>
+      <h1>Przywróć konto</h1>
+      <div class="sub">Wpisz kod konta (znajdziesz go w Ustawienia → Zaawansowane na urządzeniu, na którym masz konto).</div>
+      <div class="field"><label class="lbl" for="lCode">Kod konta</label><input id="lCode" class="inp code" placeholder="kod konta" autocomplete="off"></div>
+      <div class="err" id="lrErr"></div>
+      <button class="btn big" id="lRestGo">Przywróć</button>
+      <div style="text-align:center;margin-top:12px"><button class="btn link sm" id="lBack">Wróć</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <div id="left">
+    <nav id="rail">
+      <button class="ri" id="railHome" data-tip="Strona główna"><svg class="logo"><use href="#lc-logo"/></svg></button>
+      <div class="rsep"></div>
+      <div id="railRooms" style="display:contents"></div>
+      <button class="ri add" id="railAdd" data-tip="Utwórz lub dołącz do pokoju">+</button>
+      <button class="ri add" id="railScan" data-tip="Odkrywaj publiczne pokoje" style="font-size:22px">🧭</button>
+    </nav>
+    <aside id="chan">
+      <header id="chanHead"><span id="chanLogo"><svg class="logo"><use href="#lc-logo"/></svg></span><span id="chanTitle">LanChat</span></header>
+      <div id="chanBody"></div>
+      <div id="userpanel">
+        <button class="up-who" id="upWho" title="Ustawienia konta"><div id="upAv"></div><div class="up-t"><b id="upName">Gość</b><span id="upSub">Online</span></div></button>
+        <button class="ib" id="snd" title="Dźwięk powiadomień">🔔</button>
+        <button class="ib" id="themeBtn" title="Zmień motyw">🌗</button>
+        <button class="ib" id="adminBtn" title="Panel admina" hidden>🛡️</button>
+      </div>
+    </aside>
+  </div>
+
+  <main id="main">
+    <section class="view" id="homeView">
+      <div class="topbar"><button class="ib menuB" onclick="document.body.classList.toggle('left-open')">☰</button><div class="t"><b>🏠 Strona główna</b></div></div>
+      <div class="scroll"><div class="hwrap">
+        <h1 id="hGreet">Witaj 👋</h1>
+        <div class="muted">Czat w sieci lokalnej – bez serwera, bez konta w internecie.</div>
+        <div class="panel"><h2>Zacznij</h2><div class="muted" id="hHint"></div>
+          <div class="row" style="margin-top:14px;flex-wrap:wrap"><button class="btn" id="hPlus">＋ Dodaj pokój</button><button class="btn sec" id="hDisc">🧭 Odkrywaj pokoje</button></div></div>
+        <div class="panel" id="invitePanel" hidden>
+          <h2>Zaproś znajomych</h2>
+          <div class="muted">Wyślij im ten adres. <b>Nic nie muszą instalować</b> – wystarczy przeglądarka w tej samej sieci.</div>
+          <div class="row" style="margin-top:12px"><div class="share" id="shareUrl" style="flex:1"></div><button class="btn" id="shareCopy">Kopiuj link</button></div>
+          <div class="muted" id="shareMore" style="margin-top:6px"></div>
+        </div>
+        <div class="panel"><h2>Hostuj własny LanChat</h2><div class="muted">Chcesz mieć własny czat dla znajomych? To jedna komenda – bez uprawnień administratora i bez ruszania ustawień sieci.</div>
+          <button class="btn sec" id="hHost" style="margin-top:14px">Zobacz, jak to zrobić →</button></div>
+      </div></div>
+    </section>
+
+    <section class="view" id="discoverView" hidden>
+      <div class="topbar"><button class="ib menuB" onclick="document.body.classList.toggle('left-open')">☰</button><div class="t"><b>🧭 Odkrywaj pokoje</b></div><input id="dsearch" class="inp" placeholder="Szukaj"><button class="btn sec sm" id="dscan">🔄 Odśwież</button></div>
+      <div class="scroll"><div class="hwrap">
+        <h1>Publiczne pokoje w pobliżu</h1><div class="muted">Pokoje, które ich hostowie udostępnili wszystkim w sieci.</div>
+        <div class="dgrid" id="dgrid"></div><div class="muted" id="dstat" style="margin-top:16px"></div>
+      </div></div>
+    </section>
+
+    <section class="view" id="chatView" hidden>
+      <div class="topbar">
+        <button class="ib" id="menu" title="Menu">☰</button>
+        <div class="t"><span style="color:var(--muted);font-size:24px;line-height:1">#</span><b id="rName2">czat</b><span class="sep"></span><span class="topic" id="rTopic"></span></div>
+        <button class="btn sm" id="invBtn" title="Zaproś do pokoju">🔗 <span>Zaproś</span></button>
+        <input id="search" class="inp" placeholder="Szukaj">
+        <button class="ib" id="memBtn" title="Lista osób">👥</button>
+      </div>
+      <div id="offline" hidden></div>
+      <div id="msgs"></div>
+      <button id="jump" hidden>↓ Przejdź do najnowszych</button>
+      <div id="typing"></div>
+      <div id="composer">
+        <div id="replybar" hidden><span></span><button class="ib" id="replyX" style="width:24px;height:24px;font-size:14px">✕</button></div>
+        <div id="ac" hidden></div>
+        <div id="pop" hidden></div>
+        <div id="box">
+          <button class="ib" id="fileBtn" title="Wyślij obraz">➕</button>
+          <textarea id="input" rows="1" placeholder="Napisz wiadomość" title="Enter = wyślij, Shift+Enter = nowa linia"></textarea>
+          <input type="file" id="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+          <button class="ib" id="gifBtn" title="GIF-y" style="font-size:12px;font-weight:800">GIF</button>
+          <button class="ib" id="stickerBtn" title="Naklejki">🎟️</button>
+          <button class="ib" id="emojiBtn" title="Emotki">😊</button>
+          <button class="ib" id="send" title="Wyślij">➤</button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <aside id="members"><div id="memberList"></div></aside>
+</div>
+<div id="modalRoot"></div>
+<div id="tip" hidden></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const el = (tag, props, ...kids) => { const e = document.createElement(tag); if (props) for (const k in props) { if (k === 'class') e.className = props[k]; else if (k.startsWith('on')) e.addEventListener(k.slice(2), props[k]); else if (k === 'text') e.textContent = props[k]; else e.setAttribute(k, props[k]); } for (const kd of kids) if (kd != null) e.append(kd); return e; };
+const store = { get(k, d) { try { const v = localStorage.getItem('lc_' + k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem('lc_' + k, JSON.stringify(v)); } catch {} }, del(k) { try { localStorage.removeItem('lc_' + k); } catch {} } };
+const COLORS = ['#5865f2', '#3ba55d', '#eb459e', '#ed4245', '#faa81a', '#00a8fc', '#9b59b6', '#1abc9c'];
+const hsl = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return `hsl(${h % 360} 55% 45%)`; };
+const initials = n => { const w = String(n).trim().split(/\s+/).filter(Boolean); return ((w[0] || '?')[0] + (w.length > 1 ? w[1][0] : '')).toUpperCase(); };
+
+/* ---------- state ---------- */
+let me = {}, account = null, view = 'home', cur = null;
+const conns = new Map();   // key (addr/code) -> połączenie z pokojem – można być w wielu naraz
+let cid = store.get('cid'); if (!cid) { cid = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join(''); store.set('cid', cid); }
+let soundOn = true, lastTypingSent = 0, winUnread = 0, replyTo = null, memOpen = store.get('mem', innerWidth > 1200);
+const connKey = (addr, code) => addr + '/' + code;
+const curSt = () => cur && cur.st;
+
+/* ---------- theme / toast / avatar ---------- */
+function applyTheme(t) { document.documentElement.dataset.theme = t; store.set('theme', t); }
+applyTheme(store.get('theme', 'dark'));
+function toast(t) { $('#toast')?.remove(); const d = el('div', { id: 'toast', text: t }); document.body.append(d); setTimeout(() => d.remove(), 2400); }
+function avatar(name, color, size, status, src) {
+  const a = el('div', { class: 'av2', style: `background-color:${color};width:${size}px;height:${size}px;font-size:${Math.round(size * .45)}px`, text: src ? '' : (name || '?').trim().slice(0, 1).toUpperCase() });
+  if (src) a.style.backgroundImage = 'url(' + JSON.stringify(src) + ')';
+  if (status) a.append(el('span', { class: 'st ' + (status === 'online' ? '' : status) }));
+  return a;
+}
+function copy(t, msg) { (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast(msg), () => { const a = el('textarea'); a.value = t; document.body.append(a); a.select(); document.execCommand('copy'); a.remove(); toast(msg); }); }
+function pickAvatar(cb) {
+  const inp = el('input', { type: 'file', accept: 'image/*' });
+  inp.onchange = () => {
+    const f = inp.files[0]; if (!f) return;
+    const img = new Image(), url = URL.createObjectURL(f);
+    img.onload = () => { const s = 128, c = document.createElement('canvas'); c.width = c.height = s; const m = Math.min(img.width, img.height); c.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, s, s); URL.revokeObjectURL(url); cb(c.toDataURL('image/jpeg', .85)); };
+    img.onerror = () => toast('Nie można wczytać tego obrazu'); img.src = url;
+  };
+  inp.click();
+}
+
+/* ---------- modals ---------- */
+function closeModal() { $('#modalRoot').textContent = ''; }
+function dialog({ title, sub, body, buttons, size }) {
+  const foot = el('div', { class: 'mfoot' });
+  (buttons || [{ text: 'Zamknij', cls: 'sec' }]).forEach(b => foot.append(el('button', { class: 'btn ' + (b.cls || ''), text: b.text, onclick: () => { if (b.onclick && b.onclick() === false) return; closeModal(); } })));
+  const box = el('div', { class: 'modal ' + (size || '') }, el('div', { class: 'mhead' }, el('h2', { text: title }), sub ? el('p', { text: sub }) : null), el('div', { class: 'mbody' }, body), foot);
+  const ov = el('div', { class: 'overlay', onclick: e => { if (e.target === ov) closeModal(); } }, box);
+  $('#modalRoot').replaceChildren(ov); return box;
+}
+const confirmBox = (text, ok, label = 'Potwierdź') => dialog({ title: 'Na pewno?', body: el('p', { style: 'margin:0;text-align:center', text }), buttons: [{ text: 'Anuluj', cls: 'link' }, { text: label, cls: 'danger', onclick: ok }] });
+const field = (label, input, hint) => el('div', { class: 'field' }, el('label', { class: 'lbl' }, label, hint ? el('i', { text: ' ' + hint }) : null), input);
+function swatches(value, onPick) {
+  const box = el('div', { class: 'sw' });
+  const draw = v => { box.textContent = ''; COLORS.forEach(c => box.append(el('button', { type: 'button', class: c.toLowerCase() === v.toLowerCase() ? 'on' : '', style: 'background:' + c, title: c, onclick: () => { onPick(c); draw(c); } })));
+    const custom = el('input', { type: 'color', value: v, title: 'Własny kolor' }); custom.oninput = () => { onPick(custom.value); }; custom.onchange = () => draw(custom.value); box.append(custom); };
+  draw(value); return box;
+}
+
+/* ---------- account (zapisane na serwerze admina) ---------- */
+const normAccount = p => Object.assign({ name: 'Gość', color: COLORS[0], bio: '', avatar: '', status: 'online', theme: 'dark', sound: true, compact: false, notify: false, fontScale: 100, rooms: [] }, p || {});
+let saveT = null;
+function syncRooms() { account.rooms = [...conns.values()].map(C => ({ addr: C.addr, code: C.code, name: C.name, hostKey: C.hostKey, password: C.password, muted: C.muted })); }
+function applyLook() { document.body.classList.toggle('compact', !!account.compact); document.documentElement.style.setProperty('--fs', (16 * (account.fontScale || 100) / 100) + 'px'); }
+function saveAccount(now) {
+  clearTimeout(saveT);
+  const run = () => { syncRooms(); fetch('/api/account', { method: 'PUT', headers: { 'x-account': cid }, body: JSON.stringify(account) }).catch(() => {}); };
+  if (now) run(); else saveT = setTimeout(run, 400);
+}
+const statusLabel = { online: 'Online', idle: 'Zaraz wracam', dnd: 'Nie przeszkadzać' };
+function renderUserPanel() {
+  $('#upName').textContent = account.name; $('#upAv').replaceChildren(avatar(account.name, account.color, 32, account.status, account.avatar));
+  const r = curSt() && view === 'chat' && ({ admin: 'Admin', host: 'Host pokoju', mod: 'Moderator' })[curSt().you.role];
+  $('#upSub').textContent = r ? r + ' · ' + statusLabel[account.status] : statusLabel[account.status];
+  $('#hGreet').textContent = 'Cześć, ' + account.name + ' 👋';
+}
+$('#themeBtn').onclick = () => { account.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; applyTheme(account.theme); saveAccount(); };
+const updSnd = () => { $('#snd').textContent = soundOn ? '🔔' : '🔕'; };
+$('#snd').onclick = () => { soundOn = !soundOn; account.sound = soundOn; updSnd(); saveAccount(); };
+
+/* ---------- landing (pierwsze uruchomienie) ---------- */
+function showLanding() {
+  const d = { name: store.get('name', '') || (me.isAdmin ? me.hostName : ''), color: store.get('color', COLORS[Math.floor(Math.random() * COLORS.length)]), bio: '', avatar: '', theme: store.get('theme', 'dark') };
+  if (!/^#[0-9a-f]{6}$/i.test(d.color)) d.color = COLORS[0];
+  $('#site').hidden = true; $('#onboard').hidden = false; $('#app').hidden = true; document.title = 'Zacznij – LanChat';
+  const drawAv = () => { $('#lAv').replaceChildren(avatar($('#lName').value || '?', d.color, 96, null, d.avatar)); };
+  const drawSw = () => $('#lSw').replaceChildren(swatches(d.color, c => { d.color = c; drawAv(); }));
+  const drawTheme = () => { applyTheme(d.theme); $('#lTheme').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === d.theme)); };
+  $('#lName').value = d.name; $('#lBio').value = d.bio; drawAv(); drawSw(); drawTheme();
+  $('#lName').oninput = drawAv; $('#lAvWrap').onclick = () => pickAvatar(u => { d.avatar = u; drawAv(); });
+  $('#lTheme').onclick = e => { const v = e.target.dataset && e.target.dataset.v; if (v) { d.theme = v; drawTheme(); } };
+  $('#lName').focus();
+  const go = async () => {
+    const name = $('#lName').value.trim(); if (!name) { $('#lErr').textContent = 'Wpisz swój nick, żeby zacząć.'; return $('#lName').focus(); }
+    account = normAccount({ name, color: d.color, bio: $('#lBio').value.trim(), avatar: d.avatar, theme: d.theme, sound: true, status: 'online', rooms: [] });
+    $('#lGo').disabled = true;
+    try { const r = await fetch('/api/account', { method: 'PUT', headers: { 'x-account': cid }, body: JSON.stringify(account) }); if (!r.ok) throw 0; } catch { $('#lGo').disabled = false; return $('#lErr').textContent = 'Nie udało się zapisać konta na serwerze. Spróbuj ponownie.'; }
+    store.del('name'); startApp();
+  };
+  $('#lGo').onclick = go; $('#lName').onkeydown = e => { if (e.key === 'Enter') go(); };
+  $('#lRestore').onclick = () => { $('#lMain').hidden = true; $('#lRest').hidden = false; $('#lCode').focus(); };
+  $('#lBack').onclick = () => { $('#lMain').hidden = false; $('#lRest').hidden = true; };
+  const restore = async () => {
+    const code = $('#lCode').value.trim().replace(/\s+/g, '');
+    if (!/^[\w-]{16,64}$/.test(code)) return $('#lrErr').textContent = 'To nie wygląda na kod konta.';
+    let r = {}; try { r = await (await fetch('/api/account', { headers: { 'x-account': code } })).json(); } catch {}
+    if (!r.exists) return $('#lrErr').textContent = 'Nie znaleziono konta z tym kodem na tym serwerze.';
+    cid = code; store.set('cid', cid); account = normAccount(r.profile); startApp();
+  };
+  $('#lRestGo').onclick = restore; $('#lCode').onkeydown = e => { if (e.key === 'Enter') restore(); };
+}
+
+/* ---------- settings ---------- */
+function openSettings(tab = 'account') {
+  const d = { name: account.name, bio: account.bio, color: account.color, avatar: account.avatar, status: account.status, theme: account.theme, sound: account.sound !== false, compact: !!account.compact, fontScale: account.fontScale || 100, notify: !!account.notify };
+  const nav = el('div', { class: 'setnav' }), body = el('div', { class: 'setbody' });
+  const tabs = [['account', 'Moje konto'], ['look', 'Wygląd'], ['notif', 'Powiadomienia'], ['adv', 'Zaawansowane']];
+  function draw() {
+    nav.textContent = ''; tabs.forEach(([k, l]) => nav.append(el('button', { class: k === tab ? 'on' : '', text: l, onclick: () => { tab = k; draw(); } })));
+    body.textContent = '';
+    if (tab === 'account') {
+      const prev = el('div', { class: 'pcard', style: 'margin-bottom:16px' });
+      const nm = el('input', { class: 'inp', maxlength: 24, value: d.name }), bio = el('textarea', { class: 'inp', maxlength: 190 }); bio.value = d.bio;
+      const redraw = () => prev.replaceChildren(el('div', { class: 'ub', style: 'background:' + d.color }), el('div', { class: 'uav' }, avatar(d.name, d.color, 80, d.status, d.avatar)),
+        el('div', { class: 'ubody' }, el('div', { class: 'un', text: d.name || '—' }), el('div', { class: 'us', text: statusLabel[d.status] }), d.bio ? el('div', { class: 'bio' }, el('div', { class: 'lbl', text: 'O mnie' }), d.bio) : null));
+      nm.oninput = () => { d.name = nm.value; redraw(); }; bio.oninput = () => { d.bio = bio.value; redraw(); };
+      const st = el('div', { class: 'seg' }); ['online', 'idle', 'dnd'].forEach(s => st.append(el('button', { class: d.status === s ? 'on' : '', text: ({ online: '🟢 Online', idle: '🌙 Zaraz wracam', dnd: '⛔ Nie przeszkadzać' })[s], onclick: () => { d.status = s; draw(); } })));
+      body.append(prev, el('div', { class: 'row', style: 'margin-bottom:16px' }, el('button', { class: 'btn sm', text: 'Zmień zdjęcie', onclick: () => pickAvatar(u => { d.avatar = u; draw(); }) }), d.avatar ? el('button', { class: 'btn sec sm', text: 'Usuń zdjęcie', onclick: () => { d.avatar = ''; draw(); } }) : null),
+        field('Nick', nm), field('O mnie', bio), field('Kolor nicku', swatches(d.color, c => { d.color = c; redraw(); })), field('Status', st)); redraw();
+    } else if (tab === 'look') {
+      const o = el('div', { class: 'opt' }); [['dark', '🌙 Ciemny'], ['light', '☀️ Jasny']].forEach(([v, l]) => o.append(el('button', { class: d.theme === v ? 'on' : '', text: l, onclick: () => { d.theme = v; applyTheme(v); draw(); } })));
+      const cmp = el('input', { type: 'checkbox' }); cmp.checked = d.compact; cmp.onchange = () => { d.compact = cmp.checked; document.body.classList.toggle('compact', d.compact); };
+      const fs = el('input', { type: 'range', min: 85, max: 130, step: 5, value: d.fontScale, style: 'width:100%;accent-color:var(--brand)' }), fsv = el('span', { class: 'muted', text: d.fontScale + '%' });
+      fs.oninput = () => { d.fontScale = +fs.value; fsv.textContent = d.fontScale + '%'; document.documentElement.style.setProperty('--fs', (16 * d.fontScale / 100) + 'px'); };
+      body.append(field('Motyw', o), field('Rozmiar tekstu w czacie', el('div', { class: 'row' }, fs, fsv)), el('label', { class: 'chk' }, cmp, 'Widok kompaktowy (więcej wiadomości na ekranie, mniejsze awatary)'));
+    } else if (tab === 'notif') {
+      const c = el('input', { type: 'checkbox' }); c.checked = d.sound; c.onchange = () => d.sound = c.checked;
+      const canN = 'Notification' in window && window.isSecureContext, nt = el('input', { type: 'checkbox' }); nt.checked = d.notify && canN; nt.disabled = !canN;
+      nt.onchange = async () => { if (nt.checked && Notification.permission !== 'granted') { const p = await Notification.requestPermission(); if (p !== 'granted') { nt.checked = false; toast('Przeglądarka zablokowała powiadomienia'); } } d.notify = nt.checked; };
+      body.append(el('label', { class: 'chk' }, c, 'Dźwięk przy nowych wiadomościach, gdy karta jest w tle lub w innym pokoju'),
+        el('label', { class: 'chk' }, nt, 'Powiadomienia pulpitu, gdy karta jest w tle'),
+        canN ? null : el('div', { class: 'muted', text: 'Powiadomienia pulpitu są niedostępne: przeglądarka włącza je tylko na https lub pod adresem localhost. Na komputerze admina (localhost) zadziałają.' }),
+        el('div', { class: 'muted', style: 'margin-top:12px', text: 'Wyciszysz pojedynczy pokój prawym przyciskiem myszy na jego ikonie po lewej.' }));
+    } else {
+      const code = el('input', { class: 'inp code', readonly: 'readonly', type: 'password', value: cid });
+      body.append(el('p', { class: 'muted', style: 'margin-top:0', text: 'Profil i lista pokoi są zapisane na serwerze admina (' + location.host + '). Wrócisz do nich z tej samej przeglądarki automatycznie.' }),
+        field('Kod konta', code, '– do przywrócenia konta na innym urządzeniu. Nikomu go nie podawaj.'),
+        el('div', { class: 'row' }, el('button', { class: 'btn sec sm', text: 'Pokaż / ukryj', onclick: () => code.type = code.type === 'password' ? 'text' : 'password' }), el('button', { class: 'btn sec sm', text: 'Kopiuj', onclick: () => copy(cid, 'Skopiowano kod konta') })),
+        el('div', { style: 'margin-top:24px' }, el('button', { class: 'btn danger sm', text: 'Wyloguj z tego urządzenia', onclick: () => confirmBox('Wylogować? Konto zostaje na serwerze – wrócisz do niego, wpisując kod konta.', () => { store.del('cid'); location.reload(); }, 'Wyloguj') })));
+    }
+  }
+  draw();
+  dialog({ title: 'Ustawienia', size: 'xl', body: el('div', { class: 'set' }, nav, body), buttons: [{ text: 'Anuluj', cls: 'link', onclick: () => { applyTheme(account.theme); applyLook(); } }, { text: 'Zapisz zmiany', onclick: () => {
+    if (!d.name.trim()) { toast('Nick nie może być pusty'); return false; }
+    const avatarChanged = d.avatar !== account.avatar;
+    Object.assign(account, { name: d.name.trim(), bio: d.bio.trim(), color: d.color, avatar: d.avatar, status: d.status, theme: d.theme, sound: d.sound, compact: d.compact, fontScale: d.fontScale, notify: d.notify });
+    soundOn = d.sound; applyTheme(d.theme); applyLook(); updSnd(); saveAccount(true); renderUserPanel();
+    conns.forEach(C => { sendTo(C, { t: 'profile', name: account.name, color: account.color, bio: account.bio, status: account.status }); if (avatarChanged) pushAvatar(C); });
+    toast('Zapisano'); } }] });
+}
+$('#upWho').onclick = () => openSettings();
+
+/* ---------- połączenia (wiele pokoi naraz) ---------- */
+function addConn(addr, code, opts = {}) {
+  const key = connKey(addr, code); let C = conns.get(key);
+  if (C) { Object.assign(C, Object.fromEntries(Object.entries(opts).filter(([, v]) => v))); return C; }
+  C = { key, addr, code, base: 'http://' + addr, name: opts.name || code, hostKey: opts.hostKey, password: opts.password, state: 'offline', error: '', errCode: '', fatal: false, retries: 0,
+    st: null, hist: [], unread: 0, typing: {}, draft: store.get('draft:' + key, ''), lastMsg: null, avatarSent: '', ws: null, muted: !!opts.muted, firstUnread: null, divider: null, lastDay: null };
+  conns.set(key, C); return C;
+}
+function connect(C) {
+  clearTimeout(C.retryTimer);
+  if (C.ws) { const w = C.ws; C.ws = null; try { w.close(); } catch {} }
+  C.state = 'connecting'; C.error = ''; C.fatal = false; refreshAll(C);
+  let sock; try { sock = new WebSocket('ws://' + C.addr + '/ws'); } catch { C.state = 'offline'; C.fatal = true; C.error = 'Nieprawidłowy adres.'; return refreshAll(C); }
+  C.ws = sock; let joined = false;
+  sock.onopen = () => sock.send(JSON.stringify({ t: 'join', room: C.code, name: account.name, color: account.color, bio: account.bio, status: account.status, cid, password: C.password, hostKey: C.hostKey, adminToken: me.isAdmin && C.addr === location.host ? me.adminToken : undefined }));
+  sock.onmessage = ev => { const m = JSON.parse(ev.data); if (m.t === 'joined') joined = true; onServer(C, m); };
+  sock.onerror = () => {};
+  sock.onclose = () => {
+    if (C.ws !== sock) return; C.ws = null; if (C.st) C.st.users = [];
+    if (!C.fatal) { C.state = 'offline'; C.error = joined ? 'Rozłączono z pokojem. Łączę ponownie…' : 'Nie można połączyć z ' + C.addr + ' (zapora? ta sama sieć?). Próbuję ponownie…'; scheduleRetry(C); }
+    refreshAll(C);
+  };
+}
+function scheduleRetry(C) { if (C.fatal || !conns.has(C.key)) return; C.retries++; C.retryTimer = setTimeout(() => { if (conns.get(C.key) === C && C.state === 'offline' && !C.fatal) connect(C); }, Math.min(30000, 2000 * C.retries)); }
+function removeConn(C, notice) {
+  clearTimeout(C.retryTimer); if (C.ws) { const w = C.ws; C.ws = null; try { w.close(); } catch {} }
+  conns.delete(C.key); saveAccount(true);
+  if (cur === C) goHome(); else { renderRail(); renderChan(); renderHome(); }
+  if (notice) toast(notice);
+}
+const sendTo = (C, o) => { if (C && C.ws && C.ws.readyState === 1) C.ws.send(JSON.stringify(o)); };
+const send = o => sendTo(cur, o);
+function refreshAll(C) { renderRail(); renderChan(); renderHome(); if (C === cur && view === 'chat') renderCurrent(); }
+
+async function pushAvatar(C) {
+  if (!C.st || C.state !== 'online') return;
+  if (!account.avatar) { if (C.avatarSent) { sendTo(C, { t: 'profile', avatar: '' }); C.avatarSent = ''; } return; }
+  if (C.avatarSent === account.avatar) return;
+  try {
+    const blob = await (await fetch(account.avatar)).blob();
+    const r = await fetch(C.base + '/upload', { method: 'POST', headers: { 'x-key': C.st.uploadKey }, body: blob }), j = await r.json();
+    if (r.ok && j.url) { sendTo(C, { t: 'profile', avatar: j.url }); C.avatarSent = account.avatar; }
+  } catch {}
+}
+function totalUnread() { let n = winUnread; conns.forEach(C => { if (!C.muted) n += C.unread; }); return n; }
+function updTitle() { const n = totalUnread(); document.title = (n ? `(${n}) ` : '') + (cur && view === 'chat' && cur.st ? cur.st.room.name + ' – ' : '') + 'LanChat'; setFavicon(n > 0); }
+// favikona z czerwoną kropką, gdy są nieprzeczytane (widać ją na karcie przeglądarki)
+const FAV_BASE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5865f2"/><stop offset="1" stop-color="#eb459e"/></linearGradient></defs><rect width="64" height="64" rx="18" fill="url(#g)"/><path d="M32 12c-10.5 0-19 7.2-19 16.3 0 4.8 2.4 9.1 6.3 12L17.5 51l9.2-4.8c1.7.4 3.5.6 5.3.6 10.5 0 19-7.3 19-16.3S42.5 12 32 12z" fill="#fff"/><path d="M23 32l9-8 9 8M23 32h18" stroke="#5865f2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><g fill="#5865f2"><circle cx="23" cy="32" r="3.5"/><circle cx="32" cy="24" r="3.5"/><circle cx="41" cy="32" r="3.5"/></g>';
+let favDot = null;
+function setFavicon(dot) { if (dot === favDot) return; favDot = dot; $('#fav').href = 'data:image/svg+xml,' + encodeURIComponent(FAV_BASE + (dot ? '<circle cx="50" cy="14" r="12" fill="#f23f43" stroke="#fff" stroke-width="3"/>' : '') + '</svg>'); }
+const mentionKey = n => String(n).replace(/\s+/g, '_').toLowerCase();
+const mentionsMe = m => m.kind === 'text' && account && new RegExp('@(' + mentionKey(account.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '|wszyscy|everyone|all)(?![\\p{L}\\d_])', 'iu').test(String(m.text).replace(/\s/g, s => s));
+function notifyDesktop(C, m) {
+  if (!account.notify || !('Notification' in window) || Notification.permission !== 'granted' || C.muted) return;
+  try { const n = new Notification(m.name + ' · ' + C.name, { body: (m.text || '[' + m.kind + ']').slice(0, 120), tag: C.key }); n.onclick = () => { window.focus(); openRoom(C); n.close(); }; } catch {}
+}
+
+function onServer(C, m) {
+  const active = C === cur && view === 'chat';
+  switch (m.t) {
+    case 'error': {
+      const map = { notfound: 'Ten pokój już nie istnieje.', password: 'Pokój wymaga hasła (lub hasło się zmieniło).', banned: 'Masz bana w tym pokoju.', full: 'Pokój jest pełny.' };
+      C.fatal = true; C.state = 'offline'; C.errCode = m.code; C.error = map[m.code] || 'Błąd połączenia.';
+      if (m.code === 'notfound' && C.addr === location.host) { removeConn(C, 'Pokój „' + C.name + '” już nie istnieje – usunięto go z listy.'); return; }
+      refreshAll(C); break;
+    }
+    case 'joined':
+      C.st = { room: m.room, you: m.you, users: m.users, uploadKey: m.uploadKey }; C.hist = m.history.slice(); C.state = 'online'; C.error = ''; C.errCode = ''; C.retries = 0; C.fatal = false;
+      C.name = m.room.name; C.icon = m.room.icon || ''; C.lastMsg = null; C.avatarSent = ''; C.unread = 0; saveAccount();
+      refreshAll(C); pushAvatar(C); setTimeout(fetchOnline, 400); break;
+    case 'users': C.st.users = m.users; C.st.you = m.users.find(u => u.id === C.st.you.id) || C.st.you; if (active) { renderMembers(); renderChan(); renderUserPanel(); } else renderHome(); break;
+    case 'room': C.st.room = m.room; C.name = m.room.name; C.icon = m.room.icon || ''; saveAccount(); renderRail(); renderHome(); if (active) { renderRoom(); renderChan(); } break;
+    case 'msg': {
+      C.hist.push(m.m); if (C.hist.length > 600) C.hist.splice(0, 100);
+      if (active) domMsg(m.m, true);
+      else if (m.m.kind !== 'sys' && C.st && m.m.uid !== C.st.you.id && !C.muted) {
+        if (!C.unread) C.firstUnread = m.m.id;   // od tej wiadomości pokażemy linię „NOWE”
+        C.unread++; renderRail(); renderChan(); renderHome(); updTitle(); beep(); notifyDesktop(C, m.m);
+      }
+      break;
+    }
+    case 'reactions': { const x = C.hist.find(h => h.id === m.mid); if (x) x.reactions = m.reactions; if (active) { const d = document.getElementById('m' + m.mid); if (d) renderRx(d, m.mid, m.reactions); } break; }
+    case 'edit': { const x = C.hist.find(h => h.id === m.mid); if (x) { x.text = m.text; x.edited = true; } if (active) { const d = document.getElementById('m' + m.mid); if (d) { const t = d.querySelector('.txt'); t.textContent = ''; t.append(renderBody(m.text), el('span', { class: 'muted', style: 'font-size:12px', text: ' (edytowano)' })); } } break; }
+    case 'del': { const i = C.hist.findIndex(h => h.id === m.mid); if (i >= 0) C.hist.splice(i, 1); if (active) document.getElementById('m' + m.mid)?.remove(); break; }
+    case 'typing': C.typing[m.uid] = { name: m.name, t: Date.now() }; if (active) renderTyping(); break;
+    case 'notice': if (active) toast(m.text); break;
+    case 'closed': {
+      const w = C.ws; C.ws = null; try { w && w.close(); } catch {}
+      if (/zamkni/i.test(m.reason || '')) return removeConn(C, 'Pokój „' + C.name + '” został zamknięty.');
+      C.fatal = true; C.state = 'offline'; C.error = m.reason || 'Rozłączono.'; refreshAll(C); break;
+    }
+  }
+}
+
+/* ---------- widoki ---------- */
+function setView(v) {
+  view = v;
+  $('#homeView').hidden = v !== 'home'; $('#discoverView').hidden = v !== 'discover'; $('#chatView').hidden = v !== 'chat';
+  document.body.classList.toggle('in-room', v === 'chat'); document.body.classList.toggle('mem-open', v === 'chat' && memOpen && !!cur && cur.state === 'online');
+  document.body.classList.remove('left-open'); closePop(); closeAll();
+  renderChan(); renderRail(); renderUserPanel(); updTitle();
+}
+function saveDraft() { if (cur) { cur.draft = $('#input').value; cur.divider = null; } }
+function goHome() { saveDraft(); cur = null; renderHome(); setView('home'); }
+function goDiscover() { saveDraft(); cur = null; setView('discover'); scanRooms(); }
+function openRoom(C) {
+  saveDraft(); cur = C; C.divider = C.unread ? C.firstUnread : null; C.unread = 0; C.firstUnread = null; replyTo = null; $('#replybar').hidden = true; $('#search').value = '';
+  if (C.state === 'offline' && !C.fatal && !C.ws) connect(C);
+  setView('chat'); renderCurrent();
+}
+function renderCurrent() {
+  const C = cur; if (!C) return;
+  const on = C.state === 'online' && C.st;
+  $('#offline').hidden = !!on; $('#msgs').hidden = !on; $('#typing').hidden = !on; $('#composer').hidden = !on;
+  document.body.classList.toggle('mem-open', memOpen && !!on);
+  if (on) { renderChatFull(); if (!matchMedia('(pointer:coarse)').matches) $('#input').focus(); } else { $('#rName2').textContent = C.name; $('#rTopic').textContent = ''; $('#memberList').textContent = ''; renderOffline(); }
+  renderChan(); renderUserPanel();
+}
+function renderOffline() {
+  const C = cur, box = $('#offline'); box.textContent = '';
+  const pw = el('input', { class: 'inp', type: 'password', placeholder: 'Hasło pokoju', style: 'margin-top:12px' });
+  const inner = el('div', { class: 'box' }, el('div', { style: 'font-size:48px', text: C.state === 'connecting' ? '⏳' : C.errCode === 'password' ? '🔒' : '⚠️' }), el('h3', { text: C.name }),
+    el('div', { class: 'muted', text: C.state === 'connecting' ? 'Łączenie z pokojem…' : C.error || 'Brak połączenia.' }));
+  if (C.state !== 'connecting') {
+    const go = () => { if (C.errCode === 'password') C.password = pw.value; C.retries = 0; saveAccount(); connect(C); };
+    if (C.errCode === 'password') { inner.append(pw); pw.onkeydown = e => { if (e.key === 'Enter') go(); }; }
+    inner.append(el('div', { class: 'row', style: 'justify-content:center;margin-top:16px' }, el('button', { class: 'btn', text: C.errCode === 'password' ? 'Dołącz' : 'Spróbuj ponownie', onclick: go }), el('button', { class: 'btn sec', text: 'Usuń z listy', onclick: () => removeConn(C) })));
+  }
+  box.append(inner);
+}
+$('#railHome').onclick = goHome; $('#railScan').onclick = goDiscover; $('#railAdd').onclick = () => openPlus('choose'); $('#hPlus').onclick = () => openPlus('choose'); $('#hDisc').onclick = goDiscover;
+$('#menu').onclick = () => document.body.classList.toggle('left-open');
+{ // podpowiedź z nazwą po najechaniu na ikonę w pasku serwerów (natychmiastowa, jak na Discordzie)
+  const tip = $('#tip'), rail = $('#rail');
+  rail.addEventListener('mouseover', e => { const b = e.target.closest('[data-tip]'); if (!b) { tip.hidden = true; return; } tip.textContent = b.dataset.tip; tip.hidden = false; const r = b.getBoundingClientRect(); tip.style.left = (r.right + 14) + 'px'; tip.style.top = (r.top + r.height / 2) + 'px'; });
+  rail.addEventListener('mouseleave', () => tip.hidden = true); rail.addEventListener('scroll', () => tip.hidden = true);
+}
+$('#memBtn').onclick = () => { memOpen = !memOpen; store.set('mem', memOpen); document.body.classList.toggle('mem-open', memOpen); };
+$('#main').addEventListener('click', e => { if (!e.target.closest('.menuB,#menu')) document.body.classList.remove('left-open'); }); // klik ☰ bąbelkuje do #main – nie zamykaj od razu
+
+function renderRail() {
+  const box = $('#railRooms'); box.textContent = '';
+  for (const C of conns.values()) {
+    const active = view === 'chat' && cur === C;
+    const b = el('button', { class: 'ri rm' + (active ? ' active' : '') + (C.state !== 'online' ? ' off' : '') + (C.muted ? ' muted' : '') + (C.unread && !active ? ' unr' : ''), draggable: 'true', 'data-tip': C.name + (C.muted ? ' 🔕' : '') + (C.state !== 'online' ? ' (offline)' : '') + (C.unread && !active ? ` · ${C.unread} nowych` : ''), onclick: () => { $('#tip').hidden = true; openRoom(C); } }, C.icon ? '' : initials(C.name));
+    b.style.background = C.icon ? `url(${JSON.stringify(C.base + C.icon)}) center/cover` : hsl(C.name);
+    if (C.unread && !active) b.append(el('span', { class: 'bdg', text: C.unread > 99 ? '99+' : C.unread }));
+    if (C.state === 'offline') b.append(el('span', { class: 'dotoff', text: '⚠️' }));
+    b.oncontextmenu = e => { e.preventDefault(); $('#tip').hidden = true; roomMenu(C, e.clientX, e.clientY); };
+    b.ondragstart = e => { dragKey = C.key; e.dataTransfer.setData('text/plain', C.key); e.dataTransfer.effectAllowed = 'move'; $('#tip').hidden = true; setTimeout(() => b.classList.add('drag')); };
+    b.ondragover = e => { if (dragKey && dragKey !== C.key) { e.preventDefault(); b.classList.add('over'); } };
+    b.ondragleave = () => b.classList.remove('over');
+    b.ondrop = e => { e.preventDefault(); reorderRooms(dragKey, C.key); };
+    b.ondragend = () => { dragKey = null; renderRail(); };
+    box.append(b);
+  }
+  $('#railHome').classList.toggle('active', view === 'home'); $('#railScan').classList.toggle('active', view === 'discover');
+}
+function renderChan() {
+  const body = $('#chanBody'); body.textContent = '';
+  const item = (icon, label, fn, cls, extra) => el('button', { class: 'ch ' + (cls || ''), onclick: fn }, el('span', { class: 'ic', text: icon }), el('span', { class: 'grow', text: label }), extra || null);
+  if (view !== 'chat' || !cur) {
+    $('#chanTitle').textContent = 'LanChat';
+    body.append(el('div', { class: 'cat', text: 'Nawigacja' }), item('🏠', 'Strona główna', goHome, view === 'home' ? 'active' : ''), item('🧭', 'Odkrywaj pokoje', goDiscover, view === 'discover' ? 'active' : ''), item('＋', 'Utwórz lub dołącz', () => openPlus('choose')));
+    body.append(item('🚀', 'Strona startowa', () => { history.replaceState(null, '', '#/'); showSite('home'); }));
+    // pokoje są tylko na pasku po lewej (jak serwery na Discordzie); tutaj, po nawigacji, są już tylko aktywne osoby
+    body.append(el('div', { class: 'cat', text: 'Aktywni — ' + online.length }));
+    if (!online.length) body.append(el('div', { class: 'muted', style: 'padding:4px 16px', text: 'Nikt nie jest teraz połączony.' }));
+    for (const u of online) body.append(el('button', { class: 'ch person', onclick: e => miniCard(u, e), title: u.bio || '' },
+      avatar(u.name, u.color, 32, u.status || 'online', u.avatar && location.origin + u.avatar), el('span', { class: 'grow', text: u.name + (u.self ? ' (Ty)' : '') }), u.admin ? el('span', { class: 'tag', text: 'Admin' }) : null));
+  } else {
+    const C = cur, on = C.state === 'online' && C.st, r = on ? C.st.room : null, role = on ? C.st.you.role : 'user', mod = ['admin', 'host', 'mod'].includes(role);
+    $('#chanTitle').textContent = (r ? r.name : C.name) + (r && r.locked ? ' 🔒' : '');
+    body.append(el('div', { class: 'cat', text: 'Kanały tekstowe' }), item('#', 'czat', () => { if (on) $('#input').focus(); }, 'active'));
+    if (on) {
+      body.append(el('div', { class: 'cat', text: 'Zaproszenie' }),
+        item('🔑', r.code.slice(0, 3) + '-' + r.code.slice(3), () => copy(r.code, 'Skopiowano kod'), '', el('span', { class: 'muted', text: 'kopiuj' })),
+        item('🔗', 'Link dla gości', () => { const o = C.addr === location.host ? (/^(localhost|127\.)/.test(location.hostname) && me.urls && me.urls[0] ? me.urls[0] : location.origin) : C.base; copy(o + '/#' + r.code, 'Skopiowano link – gość nie musi nic instalować'); }));
+    }
+    body.append(el('div', { class: 'cat', text: 'Pokój' }));
+    if (on && mod) body.append(item('⚙️', 'Ustawienia pokoju', roomSettings));
+    body.append(item('🚪', 'Opuść pokój', () => confirmBox('Opuścić „' + C.name + '”? Zniknie z Twojej listy (możesz wrócić kodem).', () => removeConn(C), 'Opuść'), 'danger'));
+  }
+}
+
+/* ---------- aktywne osoby (wszyscy połączeni z systemem) ---------- */
+let online = [];
+async function fetchOnline() {
+  if (!account || $('#app').hidden || document.hidden) return;
+  try { const j = await (await fetch('/api/online', { headers: { 'x-account': cid } })).json(); const key = JSON.stringify(j.people); if (key === fetchOnline.last) return; fetchOnline.last = key; online = j.people; if (view !== 'chat') renderChan(); } catch {}
+}
+setInterval(fetchOnline, 6000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) fetchOnline(); });
+function miniCard(u, ev) {   // karta osoby z listy aktywnych (bez akcji moderatora – to nie jest widok pokoju)
+  ev.stopPropagation(); $('#ucard')?.remove(); const src = u.avatar && location.origin + u.avatar;
+  const card = el('div', { id: 'ucard', class: 'pcard' }, el('div', { class: 'ub', style: 'background:' + u.color }), el('div', { class: 'uav' }, avatar(u.name, u.color, 80, u.status || 'online', src)),
+    el('div', { class: 'ubody' }, el('div', { class: 'un', text: u.name }), el('div', { class: 'us', text: (u.admin ? 'Admin instancji · ' : '') + statusLabel[u.status || 'online'] }), u.bio ? el('div', { class: 'bio' }, el('div', { class: 'lbl', text: 'O mnie' }), u.bio) : null));
+  document.body.append(card);
+  const r = ev.currentTarget.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
+  card.style.left = Math.max(8, Math.min(r.right + 8, innerWidth - w - 8)) + 'px'; card.style.top = Math.max(8, Math.min(r.top, innerHeight - h - 8)) + 'px';
+}
+
+/* ---------- strona główna ---------- */
+function renderHome() {
+  const h = $('#hHint'); if (!h) return;
+  const n = conns.size, un = [...conns.values()].reduce((a, C) => a + C.unread, 0);
+  h.textContent = n ? `Jesteś w ${n} ${n === 1 ? 'pokoju' : 'pokojach'}${un ? ` (${un} nowych wiadomości)` : ''}. Wszystkie znajdziesz na pasku po lewej – kliknij ikonę, aby wejść.`
+    : 'Nie jesteś jeszcze w żadnym pokoju. Utwórz własny, dołącz kodem od znajomego albo zajrzyj do publicznych pokoi.';
+}
+$('#hHost').onclick = () => { location.hash = '#/host'; };
+
+/* ---------- plus: utwórz / dołącz ---------- */
+function openPlus(step, preset) {
+  if (step === 'choose') {
+    const body = el('div');
+    if (me.canHost) body.append(el('button', { class: 'choice', onclick: () => openPlus('create') }, el('span', { class: 'ci', text: '✨' }), el('span', null, el('b', { text: 'Utwórz własny pokój' }), el('span', { class: 'muted', text: 'Zostaniesz jego hostem i dostaniesz kod do zaproszeń.' }))));
+    body.append(el('button', { class: 'choice', onclick: () => openPlus('join') }, el('span', { class: 'ci', text: '🔑' }), el('span', null, el('b', { text: 'Dołącz do pokoju' }), el('span', { class: 'muted', text: 'Masz kod od znajomego? Wpisz go tutaj.' }))),
+      el('button', { class: 'choice', onclick: () => { closeModal(); goDiscover(); } }, el('span', { class: 'ci', text: '🧭' }), el('span', null, el('b', { text: 'Odkrywaj publiczne pokoje' }), el('span', { class: 'muted', text: 'Zobacz, co jest otwarte w Twojej sieci.' }))));
+    return dialog({ title: 'Dodaj pokój', sub: 'Utwórz własny albo dołącz do istniejącego.', body, buttons: [{ text: 'Zamknij', cls: 'link' }] });
+  }
+  if (step === 'create') {
+    const n = el('input', { class: 'inp', maxlength: 40, placeholder: 'np. Wieczór gier' }), pw = el('input', { class: 'inp', maxlength: 64, placeholder: 'Zostaw puste, aby każdy z kodem mógł wejść' });
+    const pub = el('input', { type: 'checkbox' }); pub.checked = true; const err = el('div', { class: 'err' });
+    const body = el('div', null, field('Nazwa pokoju', n), field('Hasło', pw, '(opcjonalnie)'), el('label', { class: 'chk' }, pub, 'Pokaż w „Odkrywaj” (publiczny)'), err);
+    const doCreate = async () => {
+      const r = await fetch('/api/rooms', { method: 'POST', body: JSON.stringify({ name: n.value, password: pw.value, isPublic: pub.checked }) }), j = await r.json();
+      if (!r.ok) { err.textContent = j.error || 'Błąd'; return; }
+      closeModal(); const C = addConn(location.host, j.code, { name: j.name, hostKey: j.hostKey, password: pw.value }); saveAccount(true); openRoom(C); connect(C);
+    };
+    n.onkeydown = pw.onkeydown = e => { if (e.key === 'Enter') doCreate(); };
+    dialog({ title: 'Utwórz pokój', body, buttons: [{ text: 'Wstecz', cls: 'link', onclick: () => { openPlus('choose'); return false; } }, { text: 'Utwórz', onclick: () => { doCreate(); return false; } }] });
+    return n.focus();
+  }
+  if (step === 'join') {
+    const code = el('input', { class: 'inp code', maxlength: 8, placeholder: 'np. K7P4XM', autocomplete: 'off', style: 'text-transform:uppercase;font-size:18px', value: preset || '' });
+    const pw = el('input', { class: 'inp', type: 'password', placeholder: 'Hasło pokoju' }), pwf = field('Hasło', pw); pwf.hidden = true;
+    const addr = el('input', { class: 'inp', placeholder: '192.168.1.20:7777' }), err = el('div', { class: 'err' });
+    const body = el('div', null, field('Kod pokoju', code), pwf, el('details', null, el('summary', { class: 'muted', style: 'cursor:pointer', text: 'Kod nie działa? Połącz ręcznie po adresie' }), el('div', { style: 'margin-top:8px' }, addr)), err);
+    const doJoin = async () => {
+      const c = code.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (c.length < 4) { err.textContent = 'Wpisz kod pokoju.'; return; }
+      let a = addr.value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+      err.textContent = 'Szukam pokoju w sieci…';
+      if (a) { if (!a.includes(':')) a += ':7777'; } else {
+        const r = await fetch('/api/resolve?code=' + c); if (!r.ok) { err.textContent = 'Nie znaleziono pokoju ' + c + '. Sprawdź kod albo połącz ręcznie po adresie.'; return; }
+        const j = await r.json(); a = j.ip + ':' + j.port;
+        if (j.locked && !pw.value && !conns.has(connKey(a, c))) { pwf.hidden = false; err.textContent = 'Pokój „' + j.name + '” jest chroniony hasłem.'; pw.focus(); return; }
+      }
+      closeModal(); const C = addConn(a, c, { password: pw.value }); C.fatal = false; saveAccount(true); openRoom(C); if (C.state !== 'online') connect(C);
+    };
+    code.onkeydown = pw.onkeydown = e => { if (e.key === 'Enter') doJoin(); };
+    dialog({ title: 'Dołącz do pokoju', sub: 'Kod dostaniesz od hosta pokoju.', body, buttons: [{ text: 'Wstecz', cls: 'link', onclick: () => { openPlus('choose'); return false; } }, { text: 'Dołącz', onclick: () => { doJoin(); return false; } }] });
+    return code.focus();
+  }
+}
+
+/* ---------- odkrywanie ---------- */
+let lastScan = [];
+async function scanRooms() {
+  $('#dstat').textContent = 'Szukam pokoi w sieci…'; $('#dscan').disabled = true;
+  try { lastScan = await (await fetch('/api/nearby')).json(); } catch { lastScan = []; }
+  $('#dscan').disabled = false; renderDiscover();
+}
+function renderDiscover() {
+  const q = $('#dsearch').value.trim().toLowerCase(), g = $('#dgrid'); g.textContent = '';
+  const list = lastScan.filter(r => !q || (r.name + ' ' + r.host).toLowerCase().includes(q));
+  $('#dstat').textContent = list.length ? '' : (lastScan.length ? 'Brak pasujących pokoi.' : 'Nie znaleziono publicznych pokoi. Host może utworzyć pokój z opcją „publiczny”.');
+  for (const r of list) {
+    const addr = r.ip + ':' + r.port, joined = conns.get(connKey(addr, r.code));
+    g.append(el('div', { class: 'dcard' }, el('div', { class: 'bn', style: `background:linear-gradient(135deg,${hsl(r.name)},${hsl(r.name + 'x')})` }), el('div', { class: 'ico' }, avatar(r.name, hsl(r.name), 46, null, r.icon && 'http://' + addr + r.icon)),
+      el('div', { class: 'bd' }, el('b', { text: r.name + (r.locked ? ' 🔒' : '') }), el('span', { class: 'muted', text: `Host: ${r.host} · ${r.users} os. online` }),
+        el('button', { class: 'btn' + (joined ? ' sec' : ''), text: joined ? 'Otwórz' : 'Dołącz', onclick: () => {
+          if (joined) return openRoom(joined);
+          const go = pass => { const C = addConn(addr, r.code, { name: r.name, password: pass }); C.fatal = false; saveAccount(true); openRoom(C); connect(C); };
+          if (!r.locked) return go('');
+          const pw = el('input', { class: 'inp', type: 'password', placeholder: 'Hasło pokoju' });
+          dialog({ title: r.name, sub: 'Ten pokój jest chroniony hasłem.', body: field('Hasło', pw), buttons: [{ text: 'Anuluj', cls: 'link' }, { text: 'Dołącz', onclick: () => go(pw.value) }] }); pw.focus();
+        } }))));
+  }
+}
+$('#dscan').onclick = scanRooms; $('#dsearch').oninput = renderDiscover;
+
+/* ---------- czat ---------- */
+function renderRoom() { const r = curSt().room; $('#rName2').textContent = 'czat'; $('#rTopic').textContent = (r.topic ? r.topic : r.name) + (r.slow ? ` · tryb powolny ${r.slow}s` : ''); }
+function renderChatFull() {
+  const C = cur, box = $('#msgs'); box.textContent = ''; C.lastMsg = null; C.lastDay = null; C.typing = {}; renderTyping();
+  renderRoom(); renderMembers();
+  if (!C.hist.some(h => h.kind !== 'sys')) box.append(el('div', { class: 'empty' }, el('h3', { text: 'Witaj w #czat!' }), el('div', { text: 'To początek tego pokoju. Napisz coś pierwszy – kod do zaproszenia znajdziesz po lewej.' })));
+  C.hist.forEach(m => domMsg(m, false));
+  const dv = box.querySelector('.newdiv'); if (dv) dv.scrollIntoView({ block: 'center' }); else scrollDown(true);   // wróć tam, gdzie skończyło się czytanie
+  newBelow = 0; updJump();
+  $('#input').value = C.draft || ''; $('#input').dispatchEvent(new Event('input'));
+}
+let newBelow = 0;
+function updJump() {
+  const b = $('#msgs'), far = b.scrollHeight - b.scrollTop - b.clientHeight > 320;
+  if (!far) newBelow = 0;
+  $('#jump').hidden = !far; $('#jump').textContent = newBelow ? `↓ ${newBelow} ${newBelow === 1 ? 'nowa wiadomość' : 'nowych wiadomości'}` : '↓ Przejdź do najnowszych';
+}
+$('#msgs').addEventListener('scroll', updJump);
+$('#jump').onclick = () => { newBelow = 0; scrollDown(); setTimeout(updJump, 400); };
+const dayLabel = ts => { const d = new Date(ts), t = new Date(), y = new Date(Date.now() - 864e5); return d.toDateString() === t.toDateString() ? 'Dzisiaj' : d.toDateString() === y.toDateString() ? 'Wczoraj' : d.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' }); };
+// treść wiadomości: bloki kodu ```…```, cytaty „> …” i formatowanie w linii
+function renderBody(s) {
+  const f = document.createDocumentFragment(), parts = String(s).split(/```([\s\S]*?)```/);
+  parts.forEach((p, i) => {
+    if (i % 2) { const code = p.replace(/^[\w+-]*\n/, '').replace(/\n$/, ''); const pre = el('pre', null, el('code', { text: code }), el('button', { class: 'cpy', text: 'Kopiuj', onclick: () => copy(code, 'Skopiowano kod') })); f.append(pre); return; }
+    if (i < parts.length - 1) p = p.replace(/\n$/, ''); if (i > 0) p = p.replace(/^\n/, '');   // bez pustych linii wokół bloku kodu
+    if (!p) return;
+    const lines = p.split('\n'); let buf = [], quote = false;
+    const flush = () => { if (!buf.length) return; const txt = buf.join('\n'); if (quote) f.append(el('blockquote', null, renderText(txt))); else f.append(renderText(txt)); buf = []; };
+    lines.forEach((ln, k) => { const q = /^>\s?/.test(ln); if (q !== quote) { flush(); quote = q; } buf.push(q ? ln.replace(/^>\s?/, '') : ln); if (k === lines.length - 1) flush(); });
+  });
+  return f;
+}
+const ROLE = { admin: 'Admin', host: 'Host', mod: 'Mod' };
+function renderMembers() {
+  const box = $('#memberList'); box.textContent = ''; const S = curSt(); if (!S) return;
+  for (const [label, fn] of [['Prowadzący', u => u.role === 'admin' || u.role === 'host'], ['Moderatorzy', u => u.role === 'mod'], ['Użytkownicy', u => u.role === 'user']]) {
+    const l = S.users.filter(fn); if (!l.length) continue;
+    box.append(el('div', { class: 'cat', text: label + ' — ' + l.length }));
+    for (const u of l) box.append(el('button', { class: 'mem', onclick: e => userCard(u, e) }, avatar(u.name, u.color, 32, u.status || 'online', u.avatar && abs(u.avatar)), el('b', { text: u.name + (u.id === S.you.id ? ' (Ty)' : '') + (u.muted ? ' 🔇' : '') })));
+  }
+}
+function closeAll() { $('#ucard')?.remove(); $('#qr')?.remove(); }
+document.addEventListener('click', e => { if (!e.target.closest('#ucard,.mem,.hd b,.mention,.m > .av2')) $('#ucard')?.remove(); });
+function userCard(u, ev) {
+  ev.stopPropagation(); $('#ucard')?.remove(); const S = curSt();
+  const canMod = ['admin', 'host', 'mod'].includes(S.you.role), canHost = ['admin', 'host'].includes(S.you.role), ctx = el('div', { class: 'ctx' });
+  const item = (txt, fn, d) => ctx.append(el('button', { class: d ? 'd' : '', text: txt, onclick: () => { $('#ucard')?.remove(); fn(); } }));
+  if (u.id !== S.you.id) {
+    item('@ Wspomnij', () => { $('#input').value += '@' + u.name + ' '; $('#input').focus(); });
+    if (canMod && !['admin', 'host'].includes(u.role) && !(u.role === 'mod' && !canHost)) {
+      item(u.muted ? '🔊 Odcisz' : '🔇 Wycisz', () => send({ t: 'mod', act: u.muted ? 'unmute' : 'mute', uid: u.id }));
+      if (canHost) item(u.role === 'mod' ? '⬇️ Odbierz moderatora' : '⭐ Nadaj moderatora', () => send({ t: 'mod', act: u.role === 'mod' ? 'demote' : 'promote', uid: u.id }));
+      item('👢 Wyrzuć', () => send({ t: 'mod', act: 'kick', uid: u.id }), true);
+      item('⛔ Zbanuj', () => confirmBox('Zbanować ' + u.name + ' w tym pokoju?', () => send({ t: 'mod', act: 'ban', uid: u.id }), 'Zbanuj'), true);
+    }
+  }
+  const card = el('div', { id: 'ucard', class: 'pcard' }, el('div', { class: 'ub', style: 'background:' + u.color }), el('div', { class: 'uav' }, avatar(u.name, u.color, 80, u.status || 'online', u.avatar && abs(u.avatar))),
+    el('div', { class: 'ubody' }, el('div', { class: 'un', text: u.name }), el('div', { class: 'us', text: ({ admin: 'Admin instancji', host: 'Host pokoju', mod: 'Moderator', user: 'Użytkownik' })[u.role] + ' · ' + statusLabel[u.status || 'online'] + (u.muted ? ' · wyciszony(-a)' : '') }),
+      u.bio ? el('div', { class: 'bio' }, el('div', { class: 'lbl', text: 'O mnie' }), u.bio) : null, ctx.children.length ? ctx : null));
+  document.body.append(card);
+  const r = ev.currentTarget.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
+  let x = r.left - w - 8; if (x < 8) x = Math.min(r.right + 8, innerWidth - w - 8);
+  card.style.left = Math.max(8, x) + 'px'; card.style.top = Math.max(8, Math.min(r.top, innerHeight - h - 8)) + 'px';
+}
+function roomSettings() {
+  const C = cur, S = C.st, host = ['admin', 'host'].includes(S.you.role);
+  const topic = el('input', { class: 'inp', placeholder: 'Temat pokoju', value: S.room.topic, maxlength: 140 }), slow = el('input', { class: 'inp', type: 'number', min: 0, max: 300, value: S.room.slow });
+  const pass = el('input', { class: 'inp', placeholder: 'Nowe hasło (puste = brak)', maxlength: 64 }); let passTouched = false; pass.oninput = () => passTouched = true;
+  const upl = el('input', { type: 'file', accept: 'image/png,image/gif,image/webp,image/jpeg', style: 'color:var(--muted)' });
+  let newIcon = null, rmIcon = false; const iconBox = el('div', { class: 'row' });
+  const drawIcon = () => { iconBox.textContent = ''; const src = newIcon || (!rmIcon && S.room.icon ? C.base + S.room.icon : '');
+    iconBox.append(avatar(S.room.name, hsl(S.room.name), 56, null, src), el('button', { class: 'btn sm', text: 'Wybierz ikonę', onclick: () => pickAvatar(u => { newIcon = u; rmIcon = false; drawIcon(); }) }), src ? el('button', { class: 'btn sec sm', text: 'Usuń', onclick: () => { newIcon = null; rmIcon = true; drawIcon(); } }) : null); };
+  drawIcon();
+  const body = el('div', null, field('Temat', topic));
+  if (host) body.append(field('Ikona pokoju', iconBox, '(widoczna na pasku po lewej)'), field('Tryb powolny', slow, '(sekundy między wiadomościami)'), field('Hasło pokoju', pass), field('Własna naklejka pokoju', upl),
+    el('button', { class: 'btn danger sm', text: 'Zamknij pokój i usuń historię', onclick: () => confirmBox('Zamknąć pokój? Wszyscy zostaną wyrzuceni, a historia usunięta.', () => sendTo(C, { t: 'room', act: 'close' }), 'Zamknij pokój') }));
+  dialog({ title: 'Ustawienia pokoju', body, buttons: [{ text: 'Anuluj', cls: 'link' }, { text: 'Zapisz', onclick: () => { (async () => {
+    if (topic.value !== S.room.topic) sendTo(C, { t: 'room', act: 'topic', value: topic.value });
+    if (host) { if (+slow.value !== S.room.slow) sendTo(C, { t: 'room', act: 'slow', value: slow.value });
+      if (passTouched) { sendTo(C, { t: 'room', act: 'password', value: pass.value }); C.password = pass.value; saveAccount(); }
+      if (newIcon) { const u = await upload(await (await fetch(newIcon)).blob()); if (u) sendTo(C, { t: 'room', act: 'icon', value: u }); }
+      else if (rmIcon) sendTo(C, { t: 'room', act: 'icon', value: '' });
+      if (upl.files[0]) { const u = await upload(upl.files[0]); if (u) sendTo(C, { t: 'room', act: 'sticker', value: u }); } }
+    toast('Zapisano'); })(); } }] });
+}
+
+/* ---------- renderowanie tekstu ---------- */
+const SHORT = { smile: '😄', grin: '😁', joy: '😂', rofl: '🤣', wink: '😉', heart: '❤️', fire: '🔥', thumbsup: '👍', '+1': '👍', '-1': '👎', clap: '👏', pray: '🙏', eyes: '👀', tada: '🎉', party: '🥳', cry: '😢', sob: '😭', angry: '😠', cool: '😎', thinking: '🤔', shrug: '🤷', facepalm: '🤦', ok: '👌', wave: '👋', 100: '💯', skull: '💀', poop: '💩', rocket: '🚀', star: '⭐', sun: '☀️', moon: '🌙', cat: '🐱', dog: '🐶', pizza: '🍕', beer: '🍺', coffee: '☕', cake: '🍰', music: '🎵', game: '🎮', laugh: '😆', sleepy: '😴', love: '😍', kiss: '😘', sad: '😞', think: '🤔', muscle: '💪', check: '✅', x: '❌', warning: '⚠️', zap: '⚡', ghost: '👻', robot: '🤖', unicorn: '🦄' };
+const TOKEN = /(`[^`\n]+`)|(\*\*[^*\n]+?\*\*)|(~~[^~\n]+?~~)|(\|\|[^|\n]+?\|\|)|(\*[^*\s][^*\n]*?\*)|(https?:\/\/[^\s<]+[^\s<.,;:!?)"'\]])|(@[\p{L}\d_]{2,24})|(:[a-z0-9_+-]{1,20}:)/giu;
+function renderText(s, depth = 0) {
+  const f = document.createDocumentFragment(); let last = 0, m;
+  const re = new RegExp(TOKEN.source, TOKEN.flags); // własny regex na wywołanie (rekurencja)
+  while ((m = re.exec(s))) {
+    if (m.index > last) f.append(s.slice(last, m.index));
+    const t = m[0];
+    if (m[1]) f.append(el('code', { text: t.slice(1, -1) }));
+    else if (m[2]) f.append(el('b', { style: 'font-weight:700' }, depth < 3 ? renderText(t.slice(2, -2), depth + 1) : t.slice(2, -2)));
+    else if (m[3]) f.append(el('s', null, depth < 3 ? renderText(t.slice(2, -2), depth + 1) : t.slice(2, -2)));
+    else if (m[4]) { const sp = el('span', { class: 'spoiler', title: 'Kliknij, aby odsłonić' }, t.slice(2, -2)); sp.onclick = () => sp.classList.toggle('on'); f.append(sp); }
+    else if (m[5]) f.append(el('i', null, depth < 3 ? renderText(t.slice(1, -1), depth + 1) : t.slice(1, -1)));
+    else if (m[6]) f.append(el('a', { href: t, target: '_blank', rel: 'noopener noreferrer nofollow', text: t }));
+    else if (m[7]) f.append(el('span', { class: 'mention', text: t }));
+    else if (m[8]) f.append(SHORT[t.slice(1, -1).toLowerCase()] || t);
+    last = m.index + t.length;
+  }
+  if (last < s.length) f.append(s.slice(last));
+  return f;
+}
+const IMG_EXT = /\.(png|jpe?g|gif|webp)(\?[^\s]*)?$/i;
+const abs = u => u && u.startsWith('/') && cur ? cur.base + u : u;
+function mediaImg(url, cls) {
+  const i = el('img', { class: cls || 'media', src: abs(url), loading: 'lazy', alt: '', referrerpolicy: 'no-referrer' });
+  if (!(cls || '').includes('stk')) i.onclick = () => { const lb = el('div', { id: 'lightbox', onclick: () => lb.remove() }, el('img', { src: i.src })); document.body.append(lb); };
+  return i;
+}
+const fmtTime = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function domMsg(m, live) {
+  const C = cur, S = C.st, box = $('#msgs');
+  box.querySelector('.empty')?.remove();
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 160;
+  const day = new Date(m.ts).toDateString(); let newDay = false;
+  if (C.lastDay !== day) { box.append(el('div', { class: 'dsep', text: dayLabel(m.ts) })); C.lastDay = day; newDay = true; }
+  if (C.divider && m.id === C.divider) { box.append(el('div', { class: 'newdiv' }, el('span', { text: 'NOWE' }))); C.divider = null; C.divShown = true; newDay = true; }
+  if (m.kind === 'sys') { box.append(el('div', { class: 'sysmsg', id: 'm' + m.id, text: m.text })); C.lastMsg = null; if (live && nearBottom) scrollDown(); return; }
+  const cont = !newDay && C.lastMsg && C.lastMsg.uid === m.uid && m.ts - C.lastMsg.ts < 300000 && !m.reply; C.lastMsg = m;
+  const mine = m.uid === S.you.id, canMod = ['admin', 'host', 'mod'].includes(S.you.role), body = el('div');
+  if (m.reply) body.append(el('div', { class: 'reply', onclick: () => { const t = document.getElementById('m' + m.reply.id); if (t) { t.scrollIntoView({ block: 'center' }); t.classList.add('hl'); setTimeout(() => t.classList.remove('hl'), 1600); } } }, el('span', { class: 'rs' }, el('span', { class: 'rn', text: '@' + m.reply.name }), el('span', { class: 'rt', text: m.reply.text }))));
+  if (!cont) body.append(el('div', { class: 'hd' }, el('b', { style: 'color:' + m.color, text: m.name, onclick: e => { const u = S.users.find(x => x.id === m.uid); if (u) userCard(u, e); } }), ROLE[m.role] ? el('span', { class: 'tag ' + m.role, text: ROLE[m.role] }) : null, el('time', { text: fmtTime(m.ts) })));
+  const txt = el('div', { class: 'txt' });
+  if (m.kind === 'text') {
+    if (m.me) { txt.style.fontStyle = 'italic'; txt.append('* ' + m.name + ' ', renderText(m.text)); } else txt.append(renderBody(m.text));
+    if (m.edited) txt.append(el('span', { class: 'muted', style: 'font-size:12px', text: ' (edytowano)' }));
+    body.append(txt);
+    (m.text.match(/https?:\/\/[^\s<]+/g) || []).filter(u => IMG_EXT.test(u) || /(media\d*\.giphy\.com|media\.tenor\.com|i\.imgur\.com)/i.test(u)).slice(0, 2).forEach(u => body.append(mediaImg(u)));
+  } else if (m.kind === 'gif' || m.kind === 'img') { if (m.text) { txt.append(renderText(m.text)); body.append(txt); } body.append(mediaImg(m.url)); }
+  else if (m.kind === 'sticker') { if (m.url) body.append(mediaImg(m.url, 'media stk-img')); else { body.append(el('div', { class: 'stk', text: m.text })); if (m.label) body.append(el('div', { class: 'stk-l', text: m.label })); } }
+  body.append(el('div', { class: 'rx' }));
+  const tools = el('div', { class: 'tools' },
+    el('button', { title: 'Dodaj reakcję', text: '😊', onclick: e => { e.stopPropagation(); reactPicker(m.id, e.currentTarget); } }),
+    m.kind === 'text' && mine ? el('button', { title: 'Edytuj', text: '✏️', onclick: () => editMsg(m.id) }) : null,
+    el('button', { title: 'Odpowiedz', text: '↩️', onclick: () => setReply(m) }),
+    mine || canMod ? el('button', { class: 'd', title: 'Usuń', text: '🗑️', onclick: () => send({ t: 'del', mid: m.id }) }) : null);
+  const row = el('div', { class: 'm ' + (cont ? 'cont' : 'first') + (m.reply ? ' rep' : '') + (!mine && mentionsMe(m) ? ' mentioned' : ''), id: 'm' + m.id }, cont ? el('span', { class: 'gt', text: fmtTime(m.ts) }) : null, body, tools);
+  row.oncontextmenu = e => { e.preventDefault(); msgMenu(m, mine, canMod, e.clientX, e.clientY); };
+  if (!cont) { const a = avatar(m.name, m.color, 40, null, m.avatar && abs(m.avatar)); a.style.cursor = 'pointer'; a.onclick = e => { const u = S.users.find(x => x.id === m.uid); if (u) userCard(u, e); }; row.prepend(a); }
+  box.append(row); renderRx(row, m.id, m.reactions || {});
+  if (live) {
+    if (nearBottom || mine) scrollDown(); else { newBelow++; updJump(); }
+    if (!mine && (document.hidden || !document.hasFocus())) { winUnread++; updTitle(); beep(); notifyDesktop(C, m); }
+  }
+}
+function renderRx(row, mid, reactions) {
+  const rx = row.querySelector('.rx'); rx.textContent = ''; const me_ = curSt().you.id;
+  for (const e in reactions) rx.append(el('button', { class: reactions[e].includes(me_) ? 'me' : '', title: reactions[e].length + ' os.', onclick: () => send({ t: 'react', mid, emoji: e }) }, e, el('span', { text: reactions[e].length })));
+}
+const scrollDown = instant => { const b = $('#msgs'); b.style.scrollBehavior = instant ? 'auto' : ''; b.scrollTop = b.scrollHeight; b.style.scrollBehavior = ''; };
+window.addEventListener('focus', () => { winUnread = 0; updTitle(); });
+function beep() { if (!soundOn) return; try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 880; g.gain.setValueAtTime(.08, a.currentTime); g.gain.exponentialRampToValueAtTime(.001, a.currentTime + .18); o.start(); o.stop(a.currentTime + .2); } catch {} }
+function setReply(m) { replyTo = m; $('#replybar').hidden = false; $('#replybar span').replaceChildren('Odpowiadasz do ', el('b', { text: m.name }), ': ' + (m.text || '[' + m.kind + ']').slice(0, 80)); $('#input').focus(); }
+$('#replyX').onclick = () => { replyTo = null; $('#replybar').hidden = true; };
+function editMsg(mid) {
+  const m = cur.hist.find(x => x.id === mid), inp = el('textarea', { class: 'inp', rows: 4 }); inp.value = m.text;
+  dialog({ title: 'Edytuj wiadomość', body: inp, buttons: [{ text: 'Anuluj', cls: 'link' }, { text: 'Zapisz', onclick: () => { send({ t: 'edit', mid, text: inp.value }); } }] }); inp.focus();
+}
+function renderTyping() {
+  const box = $('#typing'); box.textContent = ''; if (!cur) return;
+  const now = Date.now(); for (const k in cur.typing) if (now - cur.typing[k].t > 3500) delete cur.typing[k];
+  const n = Object.values(cur.typing).map(x => x.name); if (!n.length) return;
+  box.append(el('i', null, el('b'), el('b'), el('b')), el('span', null, n.length > 3 ? 'Kilka osób pisze…' : n.join(', ') + (n.length > 1 ? ' piszą…' : ' pisze…')));
+}
+setInterval(renderTyping, 1000);
+$('#search').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll('#msgs .m').forEach(d => { const h = cur.hist.find(x => 'm' + x.id === d.id); d.hidden = !!q && !(h && ((h.text || '') + ' ' + h.name).toLowerCase().includes(q)); });
+});
+
+/* ---------- composer ---------- */
+const input = $('#input');
+const narrow = matchMedia('(max-width:768px)'); const setPh = () => input.placeholder = narrow.matches ? 'Wiadomość' : 'Napisz wiadomość'; narrow.addEventListener('change', setPh); setPh();
+input.addEventListener('input', () => {
+  input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, innerHeight * .5) + 'px';
+  if (Date.now() - lastTypingSent > 2000 && input.value) { lastTypingSent = Date.now(); send({ t: 'typing' }); }
+});
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendText(); }
+  else if (e.key === 'Escape') { $('#replyX').click(); closePop(); }
+  else if (e.key === 'ArrowUp' && !input.value && cur && cur.st) { const mine = [...cur.hist].reverse().find(x => x.uid === cur.st.you.id && x.kind === 'text'); if (mine) editMsg(mine.id); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('#lightbox')?.remove(); closeCtx(); closeModal(); closeAll(); } });
+$('#send').onclick = sendText;
+function sendText() {
+  const t = input.value.trim(); if (!t || !cur) return;
+  const extra = replyTo ? { reply: replyTo.id } : {};
+  if (t.startsWith('/')) {
+    const [cmd, ...rest] = t.slice(1).split(' '), arg = rest.join(' ');
+    if (cmd === 'me' && arg) send({ t: 'msg', text: arg, me: true, ...extra });
+    else if (cmd === 'shrug') send({ t: 'msg', text: (arg + ' ¯\\_(ツ)_/¯').trim(), ...extra });
+    else if (cmd === 'topic') send({ t: 'room', act: 'topic', value: arg });
+    else if (cmd === 'nick' && arg) { account.name = arg.slice(0, 24); saveAccount(); renderUserPanel(); conns.forEach(C => sendTo(C, { t: 'profile', name: account.name })); }
+    else if (cmd === 'gif') { input.value = ''; openPop('gif', arg); return; }
+    else if (cmd === 'help') toast('Komendy: /me /shrug /topic /nick /gif');
+    else send({ t: 'msg', text: t, ...extra });
+  } else send({ t: 'msg', text: t, ...extra });
+  input.value = ''; input.style.height = 'auto'; $('#replyX').click(); acClose(); if (cur) { cur.draft = ''; store.del('draft:' + cur.key); }
+}
+function sendExtra(o) { send({ ...o, reply: replyTo && replyTo.id }); $('#replyX').click(); closePop(); }
+async function upload(file) {
+  if (!file || !cur || !cur.st) return null;
+  if (file.size > (me.uploadLimitMB || 8) * 1048576) { toast('Plik za duży (limit ' + (me.uploadLimitMB || 8) + ' MB)'); return null; }
+  toast('Wysyłanie…');
+  try { const r = await fetch(cur.base + '/upload', { method: 'POST', headers: { 'x-key': cur.st.uploadKey }, body: file }); const j = await r.json(); if (!r.ok) { toast('Błąd: ' + (j.error || r.status)); return null; } $('#toast')?.remove(); return j.url; }
+  catch { toast('Błąd wysyłania'); return null; }
+}
+async function sendFile(f) { const u = await upload(f); if (u) sendExtra({ t: 'img', url: u }); }
+$('#fileBtn').onclick = () => $('#file').click();
+$('#file').onchange = e => { sendFile(e.target.files[0]); e.target.value = ''; };
+input.addEventListener('paste', e => { const f = [...(e.clipboardData?.files || [])].find(x => x.type.startsWith('image/')); if (f) { e.preventDefault(); sendFile(f); } });
+let dragN = 0; const mainEl = $('#main');
+mainEl.addEventListener('dragenter', e => { if (view !== 'chat' || !e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return; e.preventDefault(); if (!dragN++) mainEl.append(el('div', { id: 'drop', text: '📥 Upuść obraz, aby wysłać' })); });
+mainEl.addEventListener('dragleave', () => { if (dragN && !--dragN) $('#drop')?.remove(); });
+mainEl.addEventListener('dragover', e => e.preventDefault());
+mainEl.addEventListener('drop', e => { e.preventDefault(); dragN = 0; $('#drop')?.remove(); if (view !== 'chat') return; const f = [...e.dataTransfer.files].find(x => x.type.startsWith('image/')); if (f) sendFile(f); });
+
+/* ---------- pickery ---------- */
+const EMOJI = {
+  '😀': '😀😃😄😁😆😅😂🤣🥲☺️😊😇🙂🙃😉😌😍🥰😘😗😙😚😋😛😝😜🤪🤨🧐🤓😎🥸🤩🥳😏😒😞😔😟😕🙁☹️😣😖😫😩🥺😢😭😤😠😡🤬🤯😳🥵🥶😱😨😰😥😓🤗🤔🫣🤭🫢🤫🤥😶😐😑😬🙄😯😦😧😮😲🥱😴🤤😪😵🤐🥴🤢🤮🤧😷🤒🤕🤑🤠😈👿👹👺🤡💩👻💀👽👾🤖',
+  '👍': '👍👎👊✊🤛🤜👏🙌👐🤲🤝🙏✍️💅🤳💪🦾🦵🦶👂👃🧠👀👁️👅👄👋🤚🖐️✋🖖👌🤌🤏✌️🤞🤟🤘🤙👈👉👆👇☝️🫵',
+  '❤️': '❤️🧡💛💚💙💜🖤🤍🤎💔❣️💕💞💓💗💖💘💝💟☮️✝️☪️🕉️☯️🔥✨⭐🌟💫💥💢💦💨🎉🎊🎈🎁🏆🥇🥈🥉⚽🏀🏈⚾🎾🏐🎱🏓🎮🎯🎲🎵🎶🎤🎧🎸🎹🎺',
+  '🐶': '🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🙈🙉🙊🐔🐧🐦🐤🦆🦅🦉🦇🐺🐗🐴🦄🐝🐛🦋🐌🐞🐜🐢🐍🦖🐙🦑🦀🐠🐟🐬🐳🦈🌵🎄🌲🌳🌴🌱🌿☘️🍀🍁🍂🌺🌻🌹🌷🌼',
+  '🍕': '🍎🍐🍊🍋🍌🍉🍇🍓🫐🍒🍑🥭🍍🥥🥝🍅🥑🍆🥔🥕🌽🌶️🥒🥦🍞🧀🥚🍳🥓🥩🍗🍖🌭🍔🍟🍕🥪🌮🌯🍝🍜🍣🍤🍙🍚🍦🍩🍪🎂🍰🍫🍬🍭☕🍵🥤🍺🍻🥂🍷🍸',
+  '🚀': '🚗🚕🚌🏎️🚓🚑🚒🚲🛵🏍️🚂✈️🚀🛸🚁⛵🚢⚓🏠🏢🏰🗼🗽⛰️🌋🏖️🏝️🌍🌙☀️⛅☁️🌧️⛈️❄️⚡🌈💻🖥️⌨️🖱️📱☎️📷🔋💡🔑🔒📚✏️📌📎✂️🧰⚙️💰💳',
+};
+const STICKERS = [['🔥', 'Ogień'], ['😂', 'Haha'], ['😭', 'Płaczę'], ['😍', 'Love'], ['🥳', 'Impreza'], ['😎', 'Cool'], ['🤔', 'Hmm'], ['🙄', 'No weź'], ['😴', 'Śpię'], ['🤯', 'Wow'], ['💀', 'Padłem'], ['👍', 'Okej'], ['👏', 'Brawo'], ['🙏', 'Proszę'], ['❤️', 'Serce'], ['🎉', 'Hura'], ['💯', 'Sto'], ['🤝', 'Deal'], ['😡', 'Wrr'], ['🤗', 'Przytul'], ['🫡', 'Tak jest'], ['🤌', 'Mamma mia'], ['👀', 'Patrzę'], ['🚀', 'Lecimy']];
+let popKind = null, gifTimer = null;
+function closePop() { $('#pop').hidden = true; popKind = null; }
+document.addEventListener('click', e => { if (popKind && !e.target.closest('#pop,#emojiBtn,#stickerBtn,#gifBtn')) closePop(); });
+function openPop(kind, preset) {
+  if (popKind === kind && !preset) return closePop();
+  popKind = kind; const p = $('#pop'); p.hidden = false; p.textContent = '';
+  if (kind === 'emoji') {
+    const grid = el('div', { class: 'grid' }), tabs = el('div', { class: 'tabs' }), search = el('input', { class: 'inp', placeholder: 'Szukaj emotki (np. fire, heart)' });
+    const fill = list => { grid.textContent = ''; for (const e of list) grid.append(el('button', { text: e, onclick: () => { input.setRangeText(e, input.selectionStart, input.selectionEnd, 'end'); input.focus(); } })); };
+    Object.keys(EMOJI).forEach((k, i) => tabs.append(el('button', { text: k, class: i ? '' : 'on', onclick: ev => { tabs.querySelectorAll('button').forEach(b => b.classList.remove('on')); ev.currentTarget.classList.add('on'); fill([...new Intl.Segmenter().segment(EMOJI[k])].map(x => x.segment)); } })));
+    search.oninput = () => { const q = search.value.toLowerCase(); if (!q) return tabs.querySelector('.on').click(); fill(Object.entries(SHORT).filter(([n]) => n.includes(q)).map(([, e]) => e)); };
+    p.append(tabs, search, grid); tabs.firstChild.click();
+  } else if (kind === 'sticker') {
+    const grid = el('div', { class: 'grid big' });
+    for (const [e, l] of STICKERS) grid.append(el('button', { title: l, text: e, onclick: () => sendExtra({ t: 'sticker', text: e, label: l }) }));
+    p.append(grid); const cs = curSt().room.stickers || [];
+    if (cs.length) { const custom = el('div', { class: 'grid' }); cs.forEach(u => custom.append(el('img', { class: 's', src: abs(u), onclick: () => sendExtra({ t: 'sticker', url: u }) }))); p.append(el('div', { class: 'cat', text: 'Naklejki pokoju' }), custom); }
+    else p.append(el('div', { class: 'muted', style: 'padding:8px 12px', text: 'Host może dodać własne naklejki w ustawieniach pokoju.' }));
+  } else if (kind === 'gif') {
+    const search = el('input', { class: 'inp', placeholder: me.giphy ? 'Szukaj GIF-ów (Giphy)' : 'Wklej link do GIF-a i Enter', value: preset || '' }), grid = el('div', { class: 'grid gifs' });
+    const run = async () => {
+      grid.textContent = '';
+      if (!me.giphy) return grid.append(el('div', { class: 'muted', style: 'grid-column:1/-1', text: 'Wyszukiwarka GIF-ów jest wyłączona (admin może wpisać klucz Giphy w panelu). Wklej link do GIF-a albo wyślij plik przyciskiem ➕.' }));
+      const j = await (await fetch('/api/gif?q=' + encodeURIComponent(search.value))).json();
+      if (j.offline) grid.append(el('div', { class: 'muted', style: 'grid-column:1/-1', text: 'Brak internetu – nie mogę pobrać GIF-ów.' }));
+      for (const g of j.results) grid.append(el('img', { src: g.thumb, title: g.title, loading: 'lazy', onclick: () => sendExtra({ t: 'gif', url: g.url }) }));
+    };
+    search.addEventListener('input', () => { clearTimeout(gifTimer); gifTimer = setTimeout(run, 350); });
+    search.addEventListener('keydown', e => { if (e.key === 'Enter' && /^https?:\/\//i.test(search.value.trim())) sendExtra({ t: 'gif', url: search.value.trim() }); });
+    p.append(search, grid); search.focus(); run();
+  }
+}
+$('#emojiBtn').onclick = () => openPop('emoji'); $('#stickerBtn').onclick = () => openPop('sticker'); $('#gifBtn').onclick = () => openPop('gif');
+function reactPicker(mid, anchor) {
+  $('#qr')?.remove(); const box = el('div', { id: 'qr' });
+  for (const e of ['👍', '❤️', '😂', '😮', '😢', '🔥', '🎉', '👀']) box.append(el('button', { text: e, onclick: () => { send({ t: 'react', mid, emoji: e }); box.remove(); } }));
+  document.body.append(box);
+  const r = anchor.getBoundingClientRect(); box.style.top = Math.max(8, r.top - 48) + 'px'; box.style.left = Math.max(8, Math.min(r.left - 150, innerWidth - box.offsetWidth - 8)) + 'px';
+  setTimeout(() => document.addEventListener('click', () => box.remove(), { once: true }), 0);
+}
+
+/* ---------- panel admina ---------- */
+$('#adminBtn').onclick = () => {
+  const api = (p, body) => fetch('/api/admin/' + p, { method: body ? 'POST' : 'GET', headers: { 'x-admin': me.adminToken }, body: body && JSON.stringify(body) }).then(r => r.json());
+  async function draw() {
+    const s = await api('state'), cfg = s.settings, body = el('div');
+    body.append(el('div', { class: 'muted', text: `Port ${s.listenPort} · dane w: ~/.lanchat` }), el('div', { class: 'cat', style: 'padding-left:0', text: 'Pokoje (' + s.rooms.length + ')' }));
+    if (!s.rooms.length) body.append(el('div', { class: 'muted', text: 'Brak pokoi.' }));
+    for (const r of s.rooms) {
+      const t = el('table'); for (const u of r.users) t.append(el('tr', null, el('td', { text: u.name }), el('td', { class: 'muted', text: u.ip }), el('td', { class: 'muted', text: u.role }), el('td', null, el('button', { class: 'btn danger sm', text: 'Ban IP', onclick: async () => { await api('ban', { ip: u.ip }); draw(); } }))));
+      body.append(el('div', { class: 'rcard', style: 'display:block;margin-top:8px;cursor:default' }, el('div', { class: 'row' }, avatar(r.name, hsl(r.name), 36), el('div', { style: 'flex:1;min-width:0' }, el('b', { style: 'color:var(--head1)', text: r.name + (r.locked ? ' 🔒' : '') }), el('div', { class: 'muted', text: r.code + ' · ' + r.mediaMB + ' MB · ' + r.users.length + ' online' })),
+        el('button', { class: 'btn sm', text: 'Wejdź', onclick: () => { closeModal(); const C = addConn(location.host, r.code, { name: r.name }); saveAccount(true); openRoom(C); if (C.state !== 'online') connect(C); } }), el('button', { class: 'btn danger sm', text: 'Zamknij', onclick: () => confirmBox('Zamknąć pokój „' + r.name + '” i usunąć jego historię?', async () => { await api('close', { code: r.code }); draw(); }, 'Zamknij') })), r.users.length ? t : null));
+    }
+    const f = { hostName: el('input', { class: 'inp', value: cfg.hostName }), maxRooms: el('input', { class: 'inp', type: 'number', value: cfg.maxRooms }), maxUsersPerRoom: el('input', { class: 'inp', type: 'number', value: cfg.maxUsersPerRoom }), uploadLimitMB: el('input', { class: 'inp', type: 'number', value: cfg.uploadLimitMB }), giphyKey: el('input', { class: 'inp', value: cfg.giphyKey, placeholder: 'opcjonalnie – klucz API Giphy' }) };
+    const lan = el('input', { type: 'checkbox' }); lan.checked = cfg.allowLanHosting; const srv = el('input', { type: 'checkbox' }); srv.checked = cfg.serveInstaller;
+    const asu = el('input', { type: 'checkbox' }); asu.checked = !!(s.autostart && s.autostart.on); asu.onchange = async () => { const r = await api('autostart', { on: asu.checked }); asu.checked = !!r.on; toast(r.on ? 'LanChat będzie uruchamiał się z Windows' : 'Autostart wyłączony'); };
+    body.append(el('div', { class: 'cat', style: 'padding-left:0', text: 'Ustawienia' }),
+      el('label', { class: 'chk' }, lan, 'Goście z LAN mogą tworzyć pokoje'), el('label', { class: 'chk' }, srv, 'Serwuj instalator jedną komendą (dla drugiego administratora)'),
+      s.autostart && s.autostart.supported ? el('label', { class: 'chk' }, asu, 'Uruchamiaj LanChat automatycznie po zalogowaniu do Windows (bez uprawnień administratora)') : null,
+      ...[['Twoja nazwa hosta', 'hostName'], ['Maks. pokoi', 'maxRooms'], ['Maks. osób w pokoju', 'maxUsersPerRoom'], ['Limit pliku (MB)', 'uploadLimitMB'], ['Klucz Giphy (wyszukiwarka GIF)', 'giphyKey']].map(([l, k]) => field(l, f[k])));
+    body.append(el('div', { class: 'cat', style: 'padding-left:0', text: 'Zbanowane IP' })); if (!cfg.bannedIps.length) body.append(el('div', { class: 'muted', text: 'Brak.' }));
+    for (const ip of cfg.bannedIps) body.append(el('div', { class: 'row', style: 'margin:4px 0' }, el('span', { style: 'flex:1', text: ip }), el('button', { class: 'btn sec sm', text: 'Odbanuj', onclick: async () => { await api('unban', { ip }); draw(); } })));
+    dialog({ title: '🛡️ Panel admina', body, size: 'wide', buttons: [{ text: 'Zamknij', cls: 'link' }, { text: 'Zapisz ustawienia', onclick: () => { const b = { allowLanHosting: lan.checked, serveInstaller: srv.checked }; for (const k in f) b[k] = f[k].value; api('settings', b).then(async () => { me = await (await fetch('/api/me')).json(); toast('Zapisano'); }); } }] });
+  }
+  draw();
+};
+
+/* ---------- start ---------- */
+/* ---------- QOL: menu kontekstowe, przełącznik Ctrl+K, skróty, podpowiedzi, zaproszenie, auto-idle ---------- */
+let dragKey = null;
+function closeCtx() { $('#ctxm')?.remove(); }
+document.addEventListener('click', closeCtx); window.addEventListener('blur', closeCtx); document.addEventListener('scroll', closeCtx, true);
+function ctxMenu(items, x, y) {
+  closeCtx(); const m = el('div', { id: 'ctxm' });
+  items.forEach(it => m.append(it === '-' ? el('div', { class: 'sepl' }) : el('button', { class: it.danger ? 'd' : '', text: it.label, onclick: () => { closeCtx(); it.fn(); } })));
+  document.body.append(m);
+  m.style.left = Math.max(8, Math.min(x, innerWidth - m.offsetWidth - 8)) + 'px'; m.style.top = Math.max(8, Math.min(y, innerHeight - m.offsetHeight - 8)) + 'px';
+}
+const inviteLink = C => (C.addr === location.host ? (/^(localhost|127\.)/.test(location.hostname) && me.urls && me.urls[0] ? me.urls[0] : location.origin) : C.base) + '/#' + C.code;
+function roomMenu(C, x, y) {
+  ctxMenu([
+    C.unread ? { label: '✅ Oznacz jako przeczytane', fn: () => { C.unread = 0; C.firstUnread = null; renderRail(); renderChan(); renderHome(); updTitle(); } } : null,
+    { label: C.muted ? '🔔 Włącz powiadomienia' : '🔕 Wycisz pokój', fn: () => { C.muted = !C.muted; if (C.muted) { C.unread = 0; C.firstUnread = null; } saveAccount(true); renderRail(); renderChan(); renderHome(); updTitle(); toast(C.muted ? 'Pokój wyciszony' : 'Powiadomienia włączone'); } },
+    { label: '🔑 Skopiuj kod pokoju', fn: () => copy(C.code, 'Skopiowano kod') },
+    { label: '🔗 Skopiuj link zaproszenia', fn: () => copy(inviteLink(C), 'Skopiowano link – nikt nie musi nic instalować') },
+    '-', { label: '🚪 Opuść pokój', danger: true, fn: () => confirmBox('Opuścić „' + C.name + '”? Zniknie z Twojej listy (możesz wrócić kodem).', () => removeConn(C), 'Opuść') },
+  ].filter(Boolean), x, y);
+}
+function msgMenu(m, mine, canMod, x, y) {
+  ctxMenu([
+    { label: '↩️ Odpowiedz', fn: () => setReply(m) },
+    m.text ? { label: '📋 Kopiuj tekst', fn: () => copy(m.text, 'Skopiowano tekst') } : null,
+    m.url ? { label: '🔗 Kopiuj adres obrazu', fn: () => copy(abs(m.url), 'Skopiowano adres') } : null,
+    { label: '👍 Zareaguj', fn: () => send({ t: 'react', mid: m.id, emoji: '👍' }) },
+    m.kind === 'text' && mine ? { label: '✏️ Edytuj', fn: () => editMsg(m.id) } : null,
+    mine || canMod ? '-' : null, mine || canMod ? { label: '🗑️ Usuń wiadomość', danger: true, fn: () => send({ t: 'del', mid: m.id }) } : null,
+  ].filter(Boolean), x, y);
+}
+function reorderRooms(from, to) {
+  if (!from || from === to || !conns.has(from) || !conns.has(to)) return;
+  const keys = [...conns.keys()], fi = keys.indexOf(from), ti = keys.indexOf(to); keys.splice(fi, 1); keys.splice(ti, 0, from);
+  const items = keys.map(k => [k, conns.get(k)]); conns.clear(); items.forEach(([k, v]) => conns.set(k, v));
+  dragKey = null; saveAccount(true); renderRail(); renderChan();
+}
+function cycleRooms(dir, unreadOnly) {
+  let list = [...conns.values()]; if (unreadOnly) list = list.filter(C => C.unread || C === cur); if (!list.length) return;
+  const i = list.indexOf(cur); openRoom(list[i < 0 ? (dir > 0 ? 0 : list.length - 1) : (i + dir + list.length) % list.length]);
+}
+function openSwitcher() {
+  if ($('#app').hidden || $('#modalRoot').children.length) return;
+  const rooms = [...conns.values()].map(C => ({ i: '#', t: C.name, s: C.muted ? 'wyciszony' : C.state !== 'online' ? 'offline' : C.unread ? C.unread + ' nowych' : '', fn: () => openRoom(C), cat: 'Pokoje' }));
+  const pages = [['🏠', 'Strona główna', goHome], ['🧭', 'Odkrywaj pokoje', goDiscover], ['＋', 'Utwórz lub dołącz do pokoju', () => openPlus('choose')], ['⚙️', 'Ustawienia konta', () => openSettings()], ['⌨️', 'Skróty klawiszowe', openShortcuts], ['🚀', 'Strona startowa', () => { history.replaceState(null, '', '#/'); showSite('home'); }]].map(([i, t, fn]) => ({ i, t, s: '', fn, cat: 'Przejdź do' }));
+  const all = [...rooms, ...pages], inp = el('input', { class: 'inp qin', placeholder: 'Dokąd chcesz przejść? Wpisz nazwę pokoju lub strony' }), list = el('div', { class: 'qlist' });
+  let idx = 0, shown = [];
+  const pick = x => { closeModal(); x.fn(); };
+  const draw = () => {
+    const q = inp.value.trim().toLowerCase(); shown = all.filter(x => !q || x.t.toLowerCase().includes(q)); idx = Math.min(idx, Math.max(0, shown.length - 1)); list.textContent = ''; let cat = '';
+    shown.forEach((x, k) => { if (x.cat !== cat) { cat = x.cat; list.append(el('div', { class: 'cat', text: cat })); } list.append(el('button', { class: 'qi' + (k === idx ? ' on' : ''), onclick: () => pick(x) }, el('span', { text: x.i, style: 'width:20px;text-align:center' }), x.t, x.s ? el('small', { text: x.s }) : null)); });
+    if (!shown.length) list.append(el('div', { class: 'muted', style: 'padding:12px', text: 'Brak wyników.' })); list.querySelector('.qi.on')?.scrollIntoView({ block: 'nearest' });
+  };
+  inp.oninput = () => { idx = 0; draw(); };
+  inp.onkeydown = e => { if (e.key === 'ArrowDown') { e.preventDefault(); idx = (idx + 1) % (shown.length || 1); draw(); } else if (e.key === 'ArrowUp') { e.preventDefault(); idx = (idx - 1 + shown.length) % (shown.length || 1); draw(); } else if (e.key === 'Enter' && shown[idx]) { e.preventDefault(); pick(shown[idx]); } };
+  const ov = el('div', { class: 'overlay qs', onclick: e => { if (e.target === ov) closeModal(); } }, el('div', { class: 'modal' }, inp, list));
+  $('#modalRoot').replaceChildren(ov); draw(); inp.focus();
+}
+function openShortcuts() {
+  const rows = [['Ctrl + K', 'Szybki przełącznik pokoi i stron'], ['Alt + ↑ / ↓', 'Poprzedni / następny pokój'], ['Alt + Shift + ↓', 'Następny pokój z nieprzeczytanymi'], ['Ctrl + /', 'Ta ściąga'], ['Enter', 'Wyślij (Shift + Enter = nowa linia)'], ['↑ w pustym polu', 'Edytuj ostatnią swoją wiadomość'], ['Esc', 'Zamknij okno / anuluj odpowiedź'], ['@  :  /', 'Podpowiedzi: osoby, emotki, komendy (Tab lub Enter)'], ['Prawy przycisk', 'Menu wiadomości i ikon pokoi'], ['Przeciągnij ikonę', 'Zmień kolejność pokoi na pasku'], ['```kod```  > cytat', 'Bloki kodu i cytaty']];
+  dialog({ title: 'Skróty klawiszowe', body: el('div', null, ...rows.map(([k, d]) => el('div', { class: 'krow' }, el('span', { class: 'kbd', text: k }), el('span', { class: 'muted', text: d })))), buttons: [{ text: 'Zamknij', cls: 'sec' }] });
+}
+function openInvite() {
+  const C = cur; if (!C || !C.st) return; const link = inviteLink(C);
+  dialog({ title: 'Zaproś do „' + C.st.room.name + '”', sub: 'Znajomi nie muszą nic instalować – wystarczy przeglądarka w tej samej sieci.', body: el('div', null,
+    el('div', { class: 'lbl', text: 'Kod pokoju' }), el('div', { class: 'invcode', title: 'Kliknij, aby skopiować', text: C.code.slice(0, 3) + '-' + C.code.slice(3), onclick: () => copy(C.code, 'Skopiowano kod') }),
+    el('div', { class: 'lbl', style: 'margin-top:16px', text: 'Link zaproszenia' }), el('div', { class: 'row' }, el('input', { class: 'inp', readonly: 'readonly', value: link, onfocus: e => e.target.select() }), el('button', { class: 'btn', text: 'Kopiuj', onclick: () => copy(link, 'Skopiowano link') }))), buttons: [{ text: 'Gotowe', cls: 'sec' }] });
+}
+$('#invBtn').onclick = openInvite;
+
+// podpowiedzi przy pisaniu: @osoba, :emotka, /komenda
+const ac = $('#ac'); let acItems = [], acIdx = 0, acTok = 0;
+const CMDS = [['me', '/me tekst', 'napisz w trzeciej osobie'], ['shrug', '/shrug', '¯\\_(ツ)_/¯'], ['topic', '/topic temat', 'ustaw temat pokoju'], ['nick', '/nick nazwa', 'zmień nick'], ['gif', '/gif fraza', 'szukaj GIF-a'], ['help', '/help', 'lista komend']];
+function acClose() { ac.hidden = true; acItems = []; }
+function acDraw() { ac.textContent = ''; acItems.forEach((it, k) => ac.append(el('button', { class: k === acIdx ? 'on' : '', onmousedown: e => { e.preventDefault(); acAccept(k); } }, it.icon, el('span', { text: it.label }), it.hint ? el('small', { text: it.hint }) : null))); ac.hidden = !acItems.length; }
+function acAccept(k) { const it = acItems[k]; if (!it) return; const pos = input.selectionStart; input.setRangeText(it.ins, pos - acTok, pos, 'end'); acClose(); input.dispatchEvent(new Event('input')); input.focus(); }
+function acUpdate() {
+  const before = input.value.slice(0, input.selectionStart); let m, items = [];
+  if ((m = before.match(/(?:^|\s)@([\p{L}\d_]{0,24})$/u)) && cur && cur.st) { const q = mentionKey(m[1]); acTok = m[1].length + 1; items = cur.st.users.filter(u => mentionKey(u.name).includes(q)).slice(0, 8).map(u => ({ label: u.name, ins: '@' + u.name.replace(/\s+/g, '_') + ' ', icon: avatar(u.name, u.color, 22, null, u.avatar && abs(u.avatar)), hint: u.id === cur.st.you.id ? 'Ty' : '' })); }
+  else if ((m = before.match(/(?:^|\s):([a-z0-9_+-]{2,20})$/i))) { const q = m[1].toLowerCase(); acTok = m[1].length + 1; items = Object.entries(SHORT).filter(([k]) => k.includes(q)).sort((a, b) => b[0].startsWith(q) - a[0].startsWith(q)).slice(0, 8).map(([k, e]) => ({ label: ':' + k + ':', ins: e + ' ', icon: el('span', { text: e }), hint: '' })); }
+  else if ((m = before.match(/^\/([a-z]*)$/i))) { const q = m[1].toLowerCase(); acTok = m[1].length + 1; items = CMDS.filter(c => c[0].startsWith(q)).map(c => ({ label: c[1], ins: '/' + c[0] + ' ', icon: el('span', { text: '/' }), hint: c[2] })); }
+  acItems = items; acIdx = 0; acDraw();
+}
+input.addEventListener('input', () => {
+  acUpdate();
+  if (cur) { cur.draft = input.value; if (input.value) store.set('draft:' + cur.key, input.value); else store.del('draft:' + cur.key); }   // szkic przetrwa przeładowanie strony
+});
+input.addEventListener('keydown', e => {
+  if (ac.hidden) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopImmediatePropagation(); acIdx = (acIdx + (e.key === 'ArrowDown' ? 1 : -1) + acItems.length) % acItems.length; acDraw(); }
+  else if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && input.value.slice(0, input.selectionStart).slice(-acTok) !== acItems[acIdx].ins.trim())) { e.preventDefault(); e.stopImmediatePropagation(); acAccept(acIdx); }
+  else if (e.key === 'Escape') { e.stopImmediatePropagation(); acClose(); }
+}, true);
+
+// skróty klawiszowe i pisanie bez klikania w pole
+document.addEventListener('keydown', e => {
+  if ($('#app').hidden) return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); openSwitcher(); return; }
+  if (mod && e.key === '/') { e.preventDefault(); openShortcuts(); return; }
+  if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); cycleRooms(e.key === 'ArrowUp' ? -1 : 1, e.shiftKey); return; }
+  if (view === 'chat' && cur && cur.state === 'online' && !mod && !e.altKey && e.key.length === 1 && e.key !== ' ' && !$('#modalRoot').children.length && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) input.focus();
+});
+
+// auto-idle: po 5 minutach bez ruchu inni widzą „Zaraz wracam”, po powrocie wraca Twój status
+let lastAct = Date.now(), autoIdle = false;
+const pushStatus = () => { const s = autoIdle && account.status === 'online' ? 'idle' : account.status; conns.forEach(C => sendTo(C, { t: 'profile', status: s })); };
+function autoIdleTick() { if (!autoIdle && account && account.status === 'online' && Date.now() - lastAct > 5 * 60e3) { autoIdle = true; pushStatus(); } }
+['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'].forEach(ev => addEventListener(ev, () => { lastAct = Date.now(); if (autoIdle) { autoIdle = false; pushStatus(); } }, { passive: true, capture: true }));
+setInterval(autoIdleTick, 15000);
+
+let appStarted = false, pendingJoin = null;
+function startApp() {
+  $('#site').hidden = true; $('#onboard').hidden = true; $('#app').hidden = false;
+  if (location.hash.startsWith('#/')) history.replaceState(null, '', location.pathname);
+  applyTheme(account.theme); applyLook(); soundOn = account.sound !== false; updSnd();
+  if (appStarted) { setView(view); return; }   // powrót z landing page – nie łącz ponownie
+  appStarted = true;
+  $('#adminBtn').hidden = !me.isAdmin;
+  if (me.isAdmin && me.urls && me.urls.length) {
+    $('#invitePanel').hidden = false; $('#shareUrl').textContent = me.urls[0];
+    $('#shareCopy').onclick = () => copy(me.urls[0], 'Skopiowano link – wyślij go znajomym');
+    $('#shareMore').textContent = me.urls.length > 1 ? 'Inne adresy tego komputera (jeśli pierwszy nie działa): ' + me.urls.slice(1).join(', ') : '';
+  }
+  for (const r of account.rooms || []) addConn(r.addr, r.code, r);
+  let i = 0; for (const C of conns.values()) setTimeout(() => connect(C), 100 * i++);
+  renderUserPanel(); renderHome(); renderRail(); setView('home'); setTimeout(fetchOnline, 900);
+  if (pendingJoin) { const c = pendingJoin; pendingJoin = null; history.replaceState(null, '', location.pathname); openPlus('join', c); }
+}
+
+/* ---------- strona startowa (landing page): własna nawigacja, tylko dla niej ---------- */
+const parseRoute = () => location.hash.startsWith('#/') ? (location.hash.slice(2).split('?')[0] || 'home') : null;   // home | features | how | host | app
+function hostCommands() {
+  const h = /^(localhost|127\.)/.test(location.hostname) && me.urls && me.urls[0] ? me.urls[0].replace('http://', '') : location.host;
+  return { win: me.serve === 'win32' ? `irm http://${h}/install.ps1 | iex` : null, linux: me.serve === 'linux' ? `curl -fsSL http://${h}/install.sh | sh` : null, mac: me.serve === 'darwin' ? `curl -fsSL http://${h}/install.sh | sh` : null };
+}
+let hostOs = /Win/i.test(navigator.platform || navigator.userAgent) ? 'win' : /Mac/i.test(navigator.platform || '') ? 'mac' : 'linux';
+function renderHostPage() {
+  $('#osTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.os === hostOs));
+  const box = $('#osBody'); box.textContent = ''; const cmd = hostCommands()[hostOs];
+  const names = { win: 'Windows', linux: 'Linux', mac: 'macOS' }, servedName = { win32: 'Windows', linux: 'Linux', darwin: 'macOS' }[me.serve];
+  if (cmd) box.append(el('div', { class: 'cmd' }, el('code', { text: cmd }), el('button', { class: 'btn sm', text: 'Kopiuj', onclick: () => copy(cmd, 'Skopiowano komendę') })),
+    el('div', { class: 'muted', style: 'margin-top:8px', text: hostOs === 'win' ? 'Wklej w PowerShell (nie musi być „jako administrator”).' : 'Wklej w terminalu.' }));
+  else if (me.serve) box.append(el('div', { class: 'note info', text: `Ten serwer działa na systemie ${servedName}, więc udostępnia wersję tylko dla niego. Wersję dla ${names[hostOs]} zbudujesz z kodu poleceniem „node build.js” uruchomionym na tym systemie.` }));
+  else box.append(el('div', { class: 'note info', text: 'Ta kopia działa z kodu źródłowego (node server.js). Zbuduj pojedynczy plik poleceniem „node build.js” – powstanie plik, który wystarczy skopiować na dowolny komputer (bez instalowania Node). Po uruchomieniu spakowanej wersji ta strona pokaże gotową komendę.' }));
+}
+$('#osTabs').onclick = e => { const o = e.target.dataset && e.target.dataset.os; if (o) { hostOs = o; renderHostPage(); } };
+function enterApp() { if (account) startApp(); else showLanding(); }
+function showSite(route) {
+  $('#onboard').hidden = true; $('#app').hidden = true; $('#site').hidden = false;
+  const host = route === 'host';
+  $('#sHome').hidden = host; $('#sHost').hidden = !host;
+  $('#sCta').textContent = account ? 'Otwórz aplikację' : 'Zacznij czatować';
+  $('#site').querySelectorAll('.slinks a').forEach(a => a.classList.toggle('on', a.dataset.p === (route === 'home' ? '' : route)));
+  document.title = host ? 'Hostuj własny – LanChat' : 'LanChat – czat w sieci lokalnej';
+  if (host) renderHostPage();
+  const sec = (route === 'features' || route === 'how') && document.getElementById('s-' + route);
+  if (sec) setTimeout(() => sec.scrollIntoView(), 0); else $('#site').scrollTop = 0;
+}
+for (const id of ['sCta', 'sHero1', 'sHero2', 'sHost1']) $('#' + id).onclick = enterApp;
+$('#lToSite').onclick = () => showSite('home');
+window.addEventListener('hashchange', () => {
+  const r = parseRoute(); if (r === 'app') return enterApp(); if (r) return showSite(r);
+  const raw = decodeURIComponent(location.hash.slice(1));   // link-zaproszenie #KOD otwarty w już działającej karcie
+  if (/^[A-Za-z0-9-]{4,12}$/.test(raw)) { const code = raw.toUpperCase().replace(/[^A-Z0-9]/g, ''); history.replaceState(null, '', location.pathname); if (account && appStarted) { startApp(); openPlus('join', code); } else { pendingJoin = code; if (account) startApp(); else showLanding(); } }
+});
+
+(async function boot() {
+  try { me = await (await fetch('/api/me')).json(); } catch { document.body.textContent = 'Nie można połączyć z serwerem LanChat.'; return; }
+  let r = { exists: false }; try { r = await (await fetch('/api/account', { headers: { 'x-account': cid } })).json(); } catch {}
+  const route = parseRoute(), raw = decodeURIComponent(location.hash.slice(1));
+  if (!route && /^[A-Za-z0-9-]{4,12}$/.test(raw)) pendingJoin = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');   // link z zaproszeniem #KOD
+  if (r.exists) { account = normAccount(r.profile); if (route && route !== 'app') showSite(route); else startApp(); }
+  else if (pendingJoin) showLanding();   // zaproszony gość od razu przechodzi do ustawienia profilu
+  else showSite(route && route !== 'app' ? route : 'home');
+})();
+</script>
+</body>
+</html>
