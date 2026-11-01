@@ -189,11 +189,12 @@ function syncMember(r, c) {
   const mem = r.members.get(c.id); if (!mem) return;
   Object.assign(mem, { name: c.name, color: c.color, bio: c.bio, status: c.status, avatar: c.avatar, seen: Date.now() });
 }
-const memberView = (r, mem, viewerIsAdmin) => ({
-  id: mem.id, name: mem.name, color: mem.color, role: shownRole(r, mem.id, viewerIsAdmin), muted: r.muted.has(mem.id),
+// role na listach są ZAWSZE publiczne (admin nie jest widoczny nawet dla siebie – zrzut ekranu go nie zdradzi); prawdziwą rolę (do uprawnień) dostaje tylko właściciel wpisu, w polu „real”
+const memberView = (r, mem, viewer) => ({
+  id: mem.id, name: mem.name, color: mem.color, role: shownRole(r, mem.id, false), real: viewer && viewer.id === mem.id ? realRole(r, mem.id) : undefined, muted: r.muted.has(mem.id),
   avatar: mem.avatar, bio: mem.bio, status: presenceOf(r, mem), online: r.clients.has(mem.id),
 });
-const usersFor = (r, viewer) => [...r.members.values()].map(m => memberView(r, m, viewer.isAdmin));
+const usersFor = (r, viewer) => [...r.members.values()].map(m => memberView(r, m, viewer));
 function broadcast(r, obj, except) {
   const s = JSON.stringify(obj);
   for (const c of r.clients.values()) if (c !== except) wsSend(c.sock, s);
@@ -242,7 +243,7 @@ function onJoin(sock, ip, m) {
   r.members.set(id, Object.assign(mem || { id, joined: Date.now(), host: false, adm: false }, { host: !!(mem && mem.host) || isHost, adm: !!(mem && mem.adm) || isAdmin }));
   syncMember(r, c);
   wsSend(sock, JSON.stringify({
-    t: 'joined', you: memberView(r, r.members.get(id), isAdmin), uploadKey: c.uploadKey, room: roomInfo(r),
+    t: 'joined', you: memberView(r, r.members.get(id), c), uploadKey: c.uploadKey, room: roomInfo(r),
     users: usersFor(r, c), history: r.history,
   }));
   sendUsers(r);
@@ -718,12 +719,11 @@ const server = http.createServer(async (req, res) => {
       });
     }
     if (p === '/api/online') { // wszyscy aktualnie połączeni z tym systemem (we wszystkich pokojach), bez duplikatów
-      const secret = String(req.headers['x-account'] || ''), seen = new Map(), adminReq = isAdminReq(req);
-      for (const r of rooms.values()) for (const c of r.clients.values()) {
-        const prev = seen.get(c.cid), self = !!secret && c.cid === secret;
-        // admin jest incognito: znacznik „Admin” widzi tylko on sam przy sobie (nikt inny nie dowie się, kto nim jest)
-        if (!prev) seen.set(c.cid, { name: c.name, color: c.color, avatar: c.avatar, bio: c.bio, status: c.status, admin: c.isAdmin && adminReq && self, self });
-        else { if (!prev.avatar && c.avatar) prev.avatar = c.avatar; if (c.isAdmin && adminReq && self) prev.admin = true; }
+      const secret = String(req.headers['x-account'] || ''), seen = new Map();
+      for (const r of rooms.values()) for (const c of r.clients.values()) {   // admin jest incognito: żadnego znacznika roli, nawet przy sobie
+        const prev = seen.get(c.cid);
+        if (!prev) seen.set(c.cid, { name: c.name, color: c.color, avatar: c.avatar, bio: c.bio, status: c.status, self: !!secret && c.cid === secret });
+        else if (!prev.avatar && c.avatar) prev.avatar = c.avatar;
       }
       const people = [...seen.values()].sort((a, b) => (b.self - a.self) || a.name.localeCompare(b.name, 'pl'));
       return sendJson(res, 200, { people });

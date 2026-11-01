@@ -596,6 +596,7 @@ let cid = store.get('cid'); if (!cid) { cid = Array.from(crypto.getRandomValues(
 let soundOn = true, lastTypingSent = 0, winUnread = 0, replyTo = null, memOpen = store.get('mem', innerWidth > 1200);
 const connKey = (addr, code) => addr + '/' + code;
 const curSt = () => cur && cur.st;
+const myRole = S => (S && S.you && (S.you.real || S.you.role)) || 'user';   // prawdziwa rola do uprawnień (admin jest ukryty na listach)
 
 /* ---------- theme / toast / avatar ---------- */
 function applyTheme(t) { document.documentElement.dataset.theme = t; store.set('theme', t); }
@@ -650,7 +651,7 @@ function saveAccount(now) {
 const statusLabel = { online: 'Online', idle: 'AFK', dnd: 'Nie przeszkadzać', afk: 'AFK (rozłączony/a)', offline: 'Niedostępny/a' };
 function renderUserPanel() {
   $('#upName').textContent = account.name; $('#upAv').replaceChildren(avatar(account.name, account.color, 32, account.status, account.avatar));
-  const r = curSt() && view === 'chat' && ({ admin: 'Admin', host: 'Host pokoju', mod: 'Moderator' })[curSt().you.role];
+  const r = curSt() && view === 'chat' && ({ host: 'Host pokoju', mod: 'Moderator' })[curSt().you.role];
   $('#upSub').textContent = r ? r + ' · ' + statusLabel[account.status] : statusLabel[account.status];
   $('#hGreet').textContent = 'Cześć, ' + account.name + ' 👋';
 }
@@ -913,7 +914,7 @@ function renderChan() {
     for (const u of online) body.append(el('button', { class: 'ch person', onclick: e => miniCard(u, e), title: u.bio || '' },
       avatar(u.name, u.color, 32, u.status || 'online', u.avatar && location.origin + u.avatar), el('span', { class: 'grow', text: u.name + (u.self ? ' (Ty)' : '') }), u.admin ? el('span', { class: 'tag', text: 'Admin' }) : null));
   } else {
-    const C = cur, on = C.state === 'online' && C.st, r = on ? C.st.room : null, role = on ? C.st.you.role : 'user', mod = ['admin', 'host', 'mod'].includes(role);
+    const C = cur, on = C.state === 'online' && C.st, r = on ? C.st.room : null, role = on ? myRole(C.st) : 'user', mod = ['admin', 'host', 'mod'].includes(role);
     $('#chanTitle').textContent = (r ? r.name : C.name) + (r && r.locked ? ' 🔒' : '');
     body.append(el('div', { class: 'cat', text: 'Kanały tekstowe' }), item('#', 'czat', () => { if (on) $('#input').focus(); }, 'active'));
     if (on) {
@@ -1080,7 +1081,7 @@ document.addEventListener('click', e => { if (!e.target.closest('#ucard,.mem,.hd
 function userCard(u, ev) {
   ev.stopPropagation(); $('#ucard')?.remove(); const S = curSt();
   // poziomy: admin (ukryty) > host > moderator > użytkownik – wyższy poziom może działać na niższych (także na osobach AFK/niedostępnych)
-  const L = { user: 0, mod: 1, host: 2, admin: 3 }, my = L[S.you.role] || 0, their = L[u.role] || 0, ctx = el('div', { class: 'ctx' });
+  const L = { user: 0, mod: 1, host: 2, admin: 3 }, my = L[myRole(S)] || 0, their = L[u.role] || 0, ctx = el('div', { class: 'ctx' });
   const item = (txt, fn, d) => ctx.append(el('button', { class: d ? 'd' : '', text: txt, onclick: () => { $('#ucard')?.remove(); fn(); } }));
   if (u.id !== S.you.id) {
     if (u.online !== false) item('@ Wspomnij', () => { $('#input').value += '@' + u.name.replace(/\s+/g, '_') + ' '; $('#input').focus(); });
@@ -1092,7 +1093,7 @@ function userCard(u, ev) {
     }
   }
   const card = el('div', { id: 'ucard', class: 'pcard' }, el('div', { class: 'ub', style: 'background:' + u.color }), el('div', { class: 'uav' }, avatar(u.name, u.color, 80, u.status || 'online', u.avatar && abs(u.avatar))),
-    el('div', { class: 'ubody' }, el('div', { class: 'un', text: u.name }), el('div', { class: 'us', text: ({ admin: 'Admin (widoczny tylko dla Ciebie)', host: 'Host pokoju', mod: 'Moderator', user: 'Użytkownik' })[u.role] + ' · ' + statusLabel[u.status || 'online'] + (u.muted ? ' · wyciszony(-a)' : '') }),
+    el('div', { class: 'ubody' }, el('div', { class: 'un', text: u.name }), el('div', { class: 'us', text: ({ admin: 'Admin', host: 'Host pokoju', mod: 'Moderator', user: 'Użytkownik' })[u.role] + ' · ' + statusLabel[u.status || 'online'] + (u.muted ? ' · wyciszony(-a)' : '') }),
       u.bio ? el('div', { class: 'bio' }, el('div', { class: 'lbl', text: 'O mnie' }), u.bio) : null, ctx.children.length ? ctx : null));
   document.body.append(card);
   const r = ev.currentTarget.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
@@ -1100,7 +1101,7 @@ function userCard(u, ev) {
   card.style.left = Math.max(8, x) + 'px'; card.style.top = Math.max(8, Math.min(r.top, innerHeight - h - 8)) + 'px';
 }
 function roomSettings() {
-  const C = cur, S = C.st, host = ['admin', 'host'].includes(S.you.role);
+  const C = cur, S = C.st, host = ['admin', 'host'].includes(myRole(S));
   const topic = el('input', { class: 'inp', placeholder: 'Temat pokoju', value: S.room.topic, maxlength: 140 }), slow = el('input', { class: 'inp', type: 'number', min: 0, max: 300, value: S.room.slow });
   const pass = el('input', { class: 'inp', placeholder: 'Nowe hasło (puste = brak)', maxlength: 64 }); let passTouched = false; pass.oninput = () => passTouched = true;
   const upl = el('input', { type: 'file', accept: 'image/png,image/gif,image/webp,image/jpeg', style: 'color:var(--muted)' });
@@ -1179,7 +1180,7 @@ function domMsg(m, live) {
   if (C.divider && m.id === C.divider) { box.append(el('div', { class: 'newdiv' }, el('span', { text: 'NOWE' }))); C.divider = null; C.divShown = true; newDay = true; }
   if (m.kind === 'sys') { box.append(el('div', { class: 'sysmsg', id: 'm' + m.id, text: m.text })); C.lastMsg = null; if (live && nearBottom) scrollDown(); return; }
   const cont = !newDay && C.lastMsg && C.lastMsg.uid === m.uid && m.ts - C.lastMsg.ts < 300000 && !m.reply; C.lastMsg = m;
-  const mine = m.uid === S.you.id, canMod = ['admin', 'host', 'mod'].includes(S.you.role), body = el('div');
+  const mine = m.uid === S.you.id, canMod = ['admin', 'host', 'mod'].includes(myRole(S)), body = el('div');
   if (m.reply) body.append(el('div', { class: 'reply', onclick: () => { const t = document.getElementById('m' + m.reply.id); if (t) { t.scrollIntoView({ block: 'center' }); t.classList.add('hl'); setTimeout(() => t.classList.remove('hl'), 1600); } } }, el('span', { class: 'rs' }, el('span', { class: 'rn', text: '@' + m.reply.name }), el('span', { class: 'rt', text: m.reply.text }))));
   if (!cont) body.append(el('div', { class: 'hd' }, el('b', { style: 'color:' + m.color, text: m.name, onclick: e => { const u = S.users.find(x => x.id === m.uid); if (u) userCard(u, e); } }), ROLE[m.role] ? el('span', { class: 'tag ' + m.role, text: ROLE[m.role] }) : null, el('time', { text: fmtTime(m.ts) })));
   const txt = el('div', { class: 'txt' });

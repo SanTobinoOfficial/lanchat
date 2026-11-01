@@ -34,12 +34,13 @@ const say = (w, o) => w.send(JSON.stringify(o));
 
   // --- admin incognito ---
   const adm = await join({ name: 'Szef', cid: 'adm44444444444444444444', adminToken: me.adminToken });
-  ok(U(adm, 'Szef').role === 'admin', 'admin widzi swoją prawdziwą rolę');
+  ok(U(adm, 'Szef').role === 'user' && U(adm, 'Szef').real === 'admin', 'admin NIE jest oznaczony nawet w swoim widoku listy (zrzut ekranu go nie zdradzi); prawdziwą rolę dostaje w polu „real”');
+  ok(lastUsers(adm).filter(x => x.id !== U(adm, 'Szef').id).every(x => x.real === undefined), 'pole „real” dotyczy tylko właściciela wpisu');
   ok(U(host, 'Szef').role === 'user' && U(ala, 'Szef').role === 'user', 'inni widzą admina jako zwykłego użytkownika (incognito)');
   say(adm, { t: 'msg', text: 'hej, to ja' }); await until(() => host.msgs.some(m => m.t === 'msg' && m.m.text === 'hej, to ja'));
   ok(host.msgs.find(m => m.t === 'msg' && m.m.text === 'hej, to ja').m.role === 'user', 'wiadomość admina nie ma znacznika roli');
   const on1 = await (await fetch(B + '/api/online')).json(), on2 = await (await fetch(B + '/api/online', { headers: { 'x-account': 'ala22222222222222222222' } })).json(), on3 = await (await fetch(B + '/api/online', { headers: { 'x-account': 'adm44444444444444444444' } })).json();
-  ok(!on1.people.some(p => p.admin) && !on2.people.some(p => p.admin) && on3.people.find(p => p.name === 'Szef').admin === true, 'lista aktywnych: znacznik admina widzi tylko sam admin przy sobie');
+  ok(!on1.people.some(p => p.admin) && !on2.people.some(p => p.admin) && on3.people.find(p => p.name === 'Szef').admin === undefined, 'lista aktywnych: nikt (także admin) nie widzi znacznika admina');
 
   // --- poziomy: admin > host > moderator > użytkownik ---
   say(host, { t: 'mod', act: 'kick', uid: U(host, 'Szef').id }); await until(() => host.msgs.some(m => m.t === 'notice' && /Nie można/.test(m.text)));

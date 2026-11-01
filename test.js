@@ -56,7 +56,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   const hid = user.msgs.filter(m => m.t === 'users').pop().users.find(u => u.name === 'Host').id;
   user.send(JSON.stringify({ t: 'mod', act: 'kick', uid: hid })); await sleep(150); assert(!host.closed, 'user nie wyrzuci hosta');
   host.send(JSON.stringify({ t: 'mod', act: 'kick', uid })); await sleep(250); assert(user.closed, 'host wyrzucił usera');
-  const adm = await mk({ name: 'Adm', cid: 'c3', adminToken: me.adminToken }); assert.equal(adm.msgs.find(m => m.t === 'joined').you.role, 'admin');
+  const adm = await mk({ name: 'Adm', cid: 'c3', adminToken: me.adminToken }); assert.equal(adm.msgs.find(m => m.t === 'joined').you.real, 'admin'); assert.equal(adm.msgs.find(m => m.t === 'joined').you.role, 'user', 'admin nie jest oznaczony nawet we własnym widoku');
   host.send(JSON.stringify({ t: 'room', act: 'topic', value: 'temat' })); await sleep(150);
   // ikona pokoju: tylko obraz z mediów tego pokoju, rozgłaszana w odkrywaniu
   const hj = host.msgs.find(m => m.t === 'joined');
