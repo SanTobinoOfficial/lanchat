@@ -1498,19 +1498,22 @@ function startApp() {
 
 /* ---------- strona startowa (landing page): własna nawigacja, tylko dla niej ---------- */
 const parseRoute = () => location.hash.startsWith('#/') ? (location.hash.slice(2).split('?')[0] || 'home') : null;   // home | features | how | host | app
-function hostCommands() {
-  const h = /^(localhost|127\.)/.test(location.hostname) && me.urls && me.urls[0] ? me.urls[0].replace('http://', '') : location.host;
-  return { win: me.serve === 'win32' ? `irm http://${h}/install.ps1 | iex` : null, linux: me.serve === 'linux' ? `curl -fsSL http://${h}/install.sh | sh` : null, mac: me.serve === 'darwin' ? `curl -fsSL http://${h}/install.sh | sh` : null };
+function hostCommands() {   // główne komendy z GitHuba (każdy komputer z internetem); alternatywa: z tego serwera w sieci lokalnej (bez internetu)
+  const h = /^(localhost|127.)/.test(location.hostname) && me.urls && me.urls[0] ? me.urls[0].replace('http://', '') : location.host;
+  const raw = 'https://raw.githubusercontent.com/' + me.repo + '/main/';
+  const gh = { win: `irm ${raw}install.ps1 | iex`, linux: `curl -fsSL ${raw}install.sh | sh`, mac: `curl -fsSL ${raw}install.sh | sh` };
+  const lan = { win: me.serve === 'win32' ? `irm http://${h}/install.ps1 | iex` : null, linux: me.serve === 'linux' ? `curl -fsSL http://${h}/install.sh | sh` : null, mac: me.serve === 'darwin' ? `curl -fsSL http://${h}/install.sh | sh` : null };
+  return { gh, lan };
 }
+const cmdRow = cmd => el('div', { class: 'cmd' }, el('code', { text: cmd }), el('button', { class: 'btn sm', text: 'Kopiuj', onclick: () => copy(cmd, 'Skopiowano komendę') }));
 let hostOs = /Win/i.test(navigator.platform || navigator.userAgent) ? 'win' : /Mac/i.test(navigator.platform || '') ? 'mac' : 'linux';
 function renderHostPage() {
   $('#osTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.os === hostOs));
-  const box = $('#osBody'); box.textContent = ''; const cmd = hostCommands()[hostOs];
-  const names = { win: 'Windows', linux: 'Linux', mac: 'macOS' }, servedName = { win32: 'Windows', linux: 'Linux', darwin: 'macOS' }[me.serve];
-  if (cmd) box.append(el('div', { class: 'cmd' }, el('code', { text: cmd }), el('button', { class: 'btn sm', text: 'Kopiuj', onclick: () => copy(cmd, 'Skopiowano komendę') })),
-    el('div', { class: 'muted', style: 'margin-top:8px', text: hostOs === 'win' ? 'Wklej w PowerShell (nie musi być „jako administrator”).' : 'Wklej w terminalu.' }));
-  else if (me.serve) box.append(el('div', { class: 'note info', text: `Ten serwer działa na systemie ${servedName}, więc udostępnia wersję tylko dla niego. Wersję dla ${names[hostOs]} zbudujesz z kodu poleceniem „node build.js” uruchomionym na tym systemie.` }));
-  else box.append(el('div', { class: 'note info', text: 'Ta kopia działa z kodu źródłowego (node server.js). Zbuduj pojedynczy plik poleceniem „node build.js” – powstanie plik, który wystarczy skopiować na dowolny komputer (bez instalowania Node). Po uruchomieniu spakowanej wersji ta strona pokaże gotową komendę.' }));
+  const box = $('#osBody'); box.textContent = ''; const { gh, lan } = hostCommands();
+  box.append(cmdRow(gh[hostOs]), el('div', { class: 'muted', style: 'margin-top:8px', text: hostOs === 'win'
+    ? 'Wklej w PowerShell (nie musi być „jako administrator”). Pobiera plik z GitHuba do Twojego profilu użytkownika – wymaga internetu.'
+    : 'Wklej w terminalu. Pobiera plik z GitHuba do ~/.local/bin – bez sudo, wymaga internetu.' + (hostOs === 'mac' ? ' Dostępna wersja dla macOS na procesorach Apple (arm64).' : ' Dostępna wersja dla Linuksa x64.') }));
+  if (lan[hostOs]) box.append(el('div', { class: 'lbl', style: 'margin-top:18px', text: 'Bez internetu (ta sama sieć lokalna)' }), cmdRow(lan[hostOs]), el('div', { class: 'muted', style: 'margin-top:8px', text: 'Pobiera plik wprost z działającego tu LanChata – przydatne, gdy drugi komputer nie ma dostępu do GitHuba.' }));
 }
 $('#osTabs').onclick = e => { const o = e.target.dataset && e.target.dataset.os; if (o) { hostOs = o; renderHostPage(); } };
 function enterApp() { if (account) startApp(); else showLanding(); }

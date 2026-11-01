@@ -6,7 +6,7 @@ const root = path.join(__dirname, '..');
 const ps = fs.readFileSync(path.join(root, 'install.ps1'), 'utf8');
 const current = (ps.match(/LANCHAT_REPO \} else \{ '([^']+)'/) || [])[1] || 'OWNER/REPO';   // repo wpisane aktualnie jako domyślne
 let n = 0;
-for (const f of ['install.ps1', 'install.sh', 'README.md']) {
+for (const f of ['install.ps1', 'install.sh', 'README.md', 'server.js']) {
   const p = path.join(root, f), s = fs.readFileSync(p, 'utf8'), c = s.split(current).length - 1;
   if (c && current !== repo) { fs.writeFileSync(p, s.split(current).join(repo)); n += c; console.log(f + ': ' + c + ' podstawień (' + current + ' → ' + repo + ')'); }
 }

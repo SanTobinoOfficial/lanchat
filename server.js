@@ -8,6 +8,7 @@ let sea = null;
 try { const s = require('node:sea'); if (s.isSea()) sea = s; } catch {}
 
 const VERSION = '0.3.0';
+const REPO = 'SanTobinoOfficial/lanchat';   // repozytorium z wydaniami (komendy instalacyjne na stronie „Hostuj własny”); podmienia je tools/set-repo.js
 const DISC_PORT = 7778;
 const DATA = path.join(os.homedir(), '.lanchat');
 fs.mkdirSync(DATA, { recursive: true });
@@ -714,7 +715,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, {
         version: VERSION, isAdmin: admin, adminToken: admin ? ADMIN_TOKEN : undefined,
         hostName: settings.hostName, canHost: admin || settings.allowLanHosting, giphy: !!settings.giphyKey,
-        urls: lanIps().map(i => `http://${i.address}:${listenPort}`), uploadLimitMB: settings.uploadLimitMB,
+        urls: lanIps().map(i => `http://${i.address}:${listenPort}`), uploadLimitMB: settings.uploadLimitMB, repo: REPO,
         serve: sea && settings.serveInstaller ? process.platform : null,
       });
     }
