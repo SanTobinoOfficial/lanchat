@@ -576,7 +576,7 @@ async function freeModels() {
   if (AI.free && Date.now() - AI.free.t < 6 * 3600e3) return AI.free.list;
   let list = null;
   try {   // lista modeli jest publiczna – wysyłamy bez klucza
-    const res = await fetch(OR_MODELS_URL, { headers: { 'x-title': 'LanChat' }, signal: AbortSignal.timeout(8000) });
+    const res = await fetch(OR_MODELS_URL, { headers: { 'x-title': 'LanChat', 'user-agent': 'LanChat/' + VERSION }, signal: AbortSignal.timeout(8000) });
     if (res.ok) {
       const j = await res.json();
       list = (j.data || []).filter(m => m && typeof m.id === 'string' && ((m.pricing && +m.pricing.prompt === 0 && +m.pricing.completion === 0) || m.id.endsWith(':free'))
@@ -603,10 +603,10 @@ async function openrouterChat(r, prompt) {
     if (Date.now() > deadline) break;
     const fail = (why, mins) => { AI.cool.set(model, Date.now() + mins * 60000); lastErr = new Error(model + ': ' + why); tlog('ai', model + ': ' + why + ' – próbuję następny model', A.yel); };
     try {
-      const res = await fetch(OR_URL, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + settings.openrouterKey, 'http-referer': 'https://github.com/' + REPO, 'x-title': 'LanChat' },
+      const res = await fetch(OR_URL, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + settings.openrouterKey, 'http-referer': 'https://github.com/' + REPO, 'x-title': 'LanChat', 'user-agent': 'LanChat/' + VERSION },
         body: JSON.stringify({ model, messages: msgs, max_tokens: 500 }), signal: AbortSignal.timeout(25000) });
-      if (res.status === 401 || res.status === 403) throw Object.assign(new Error('OpenRouter odrzucił klucz (HTTP ' + res.status + ') – sprawdź openrouterKey'), { fatal: true });
-      if (!res.ok) { const t = await res.text().catch(() => ''); fail('HTTP ' + res.status + ' ' + t.replace(/\s+/g, ' ').slice(0, 100), res.status === 429 ? 3 : (res.status === 402 || res.status === 404) ? 60 : 5); continue; }
+      if (res.status === 401) { const t = await res.text().catch(() => ''); throw Object.assign(new Error('OpenRouter odrzucił klucz (HTTP 401) – sprawdź openrouterKey' + (t ? ' · ' + t.replace(/s+/g, ' ').slice(0, 120) : '')), { fatal: true }); }   // 401 = zły/wyłączony klucz; 403 (np. moderacja) dotyczy konkretnego modelu – próbujemy następny
+      if (!res.ok) { const t = await res.text().catch(() => ''); fail('HTTP ' + res.status + ' ' + t.replace(/\s+/g, ' ').slice(0, 100), res.status === 429 ? 3 : (res.status === 402 || res.status === 404) ? 60 : res.status === 403 ? 10 : 5); continue; }
       const j = await res.json(), text = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
       if (!text || !String(text).trim()) { fail('pusta odpowiedź', 5); continue; }
       AI.last = model; return { text: clip(String(text).trim(), 1800), model };

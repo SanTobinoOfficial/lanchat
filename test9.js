@@ -13,7 +13,7 @@ let tried = [], mode = 'ok';
 const fake = http.createServer((req, res) => { let d = ''; req.on('data', c => d += c); req.on('end', () => {
   if (req.url.endsWith('/models')) { if (mode === 'nomodels') { res.writeHead(500); return res.end('x'); } res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ data: MODELS })); }
   const model = JSON.parse(d || '{}').model; tried.push(model);
-  const status = mode === 'auth' ? 401 : mode === 'first429' && model === FIRST ? 429 : mode.startsWith('pinned404') && model === 'paid/x' ? 404 : 200;
+  const status = mode === 'auth' ? 401 : mode === 'first429' && model === FIRST ? 429 : mode === 'first403' && model === FIRST ? 403 : mode.startsWith('pinned404') && model === 'paid/x' ? 404 : 200;
   if (status !== 200) { res.writeHead(status); return res.end('{"error":"x"}'); }
   res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ choices: [{ message: { content: 'odp od ' + model } }] }));
 }); }).listen(8123);
@@ -60,6 +60,12 @@ async function boot(extra) {
   const x1 = await join(room.code, 'X1', 'cid6_ffffffffffffffffffff');
   mode = 'auth'; r = await ask(x1, 'zły klucz');
   ok(r.tried.length === 1 && /chwilowo niedostępne/.test(r.answer.text), 'odrzucony klucz (401) kończy próby od razu – bez przeglądania wszystkich modeli', r.tried);
+  await stop(srv); await sleep(400);
+  // 4b) 403 (np. moderacja konkretnego modelu) to NIE zły klucz – próbujemy następny model
+  ({ srv, cfg, room } = await boot());
+  const z1 = await join(room.code, 'Z1', 'cid8_hhhhhhhhhhhhhhhhhhhh');
+  mode = 'first403'; r = await ask(z1, 'moderacja');
+  ok(JSON.stringify(r.tried) === JSON.stringify([FIRST, SECOND]) && r.answer.model === SECOND, 'HTTP 403 jednego modelu nie kończy prób – odpowiada następny darmowy model', r.tried);
   await stop(srv); await sleep(400);
   // 5) lista modeli niedostępna → lista awaryjna
   mode = 'nomodels'; ({ srv, cfg, room } = await boot());
