@@ -4,9 +4,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const HOME = path.join(os.tmpdir(), 'lc_test8_' + Date.now()), B = 'http://localhost:7777', KEY = 'sk-or-test-secret-1234';
 let passed = 0; const ok = (c, msg, extra) => { assert(c, msg + (extra ? ' ' + JSON.stringify(extra) : '')); passed++; console.log('PASS ' + msg); };
 // udawany OpenRouter
-const seen = []; let mode = 'ok';
+const seen = []; let mode = 'ok', modelsAuth = 'nie-pytano';
+const FIRST = 'a/free-big:free', SECOND = 'b/free-small:free';
+const MODELS = [{ id: SECOND, context_length: 8000, pricing: { prompt: '0', completion: '0' }, architecture: { input_modalities: ['text'], output_modalities: ['text'] } }, { id: 'c/paid-model', context_length: 999999, pricing: { prompt: '0.001', completion: '0.002' }, architecture: { input_modalities: ['text'], output_modalities: ['text'] } }, { id: FIRST, context_length: 128000, pricing: { prompt: '0', completion: '0' }, architecture: { input_modalities: ['text'], output_modalities: ['text'] } }, { id: 'd/image-gen:free', context_length: 500000, pricing: { prompt: '0', completion: '0' }, architecture: { input_modalities: ['text'], output_modalities: ['image'] } }];
 const fake = http.createServer((req, res) => { let d = ''; req.on('data', c => d += c); req.on('end', () => {
+  if (req.url.endsWith('/models')) { modelsAuth = req.headers.authorization || 'brak'; res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ data: MODELS })); }
   seen.push({ auth: req.headers.authorization, ref: req.headers['http-referer'], title: req.headers['x-title'], body: JSON.parse(d || '{}') });
+  const mdl = JSON.parse(d || '{}').model;
+  if (mode === 'auth') { res.writeHead(401); return res.end('{"error":"bad key"}'); }
+  if (mode === 'first429' && mdl === FIRST) { res.writeHead(429); return res.end('{"error":"rate limited"}'); }
+  if (mode === 'pinned404' && mdl === 'paid/x') { res.writeHead(404); return res.end('{}'); }
   if (mode === 'err') { res.writeHead(500, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"upstream boom SECRET-DETAIL"}}'); }
   res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ choices: [{ message: { content: 'Odpowiedź testowa AI' } }] }));
 }); }).listen(8123);
@@ -45,8 +52,9 @@ const reqNet = (method, p, body, headers) => new Promise(res => { const r = http
   const q = ms.find(m => m.t === 'msg' && m.m.ai === 'q'), a = ms.find(m => m.t === 'msg' && m.m.ai === 'a');
   ok(q && q.m.text === '/ai Co to jest Wi-Fi?' && q.m.name === 'Ala', 'pytanie pojawia się w pokoju jako wiadomość osoby (/ai …)');
   ok(a && a.m.role === 'bot' && a.m.name === 'AI' && a.m.text === 'Odpowiedź testowa AI' && a.m.reply.id === q.m.id, 'odpowiedź AI to wiadomość „bot” z odwołaniem do pytania');
-  ok(seen.length === 1 && seen[0].auth === 'Bearer ' + KEY && seen[0].body.model === 'openrouter/auto' && seen[0].body.max_tokens === 500, 'serwer woła OpenRouter swoim kluczem, z modelem i limitem tokenów');
+  ok(seen.length === 1 && seen[0].auth === 'Bearer ' + KEY && seen[0].body.model === FIRST && seen[0].body.max_tokens === 500, 'serwer woła OpenRouter swoim kluczem; domyślnie wybiera największy DARMOWY model (płatne i obrazkowe pomija)');
   ok(seen[0].body.messages.length === 2 && seen[0].body.messages[1].content === 'Co to jest Wi-Fi?' && !JSON.stringify(seen[0].body).includes('Ala'), 'domyślnie do OpenRouter idzie tylko treść pytania (bez kontekstu pokoju i nicków)');
+  ok(modelsAuth === 'brak', 'lista modeli jest pobierana publicznie – bez klucza'); ok(ms.find(m => m.t === 'msg' && m.m.ai === 'a').m.model === FIRST, 'odpowiedź niesie nazwę modelu, który ją wygenerował');
   ok(!JSON.stringify(ala.msgs).includes(KEY) && !JSON.stringify(bob.msgs).includes(KEY), 'klucz nie pojawia się w żadnej wiadomości dla gości');
   // --- limity ---
   ok(/Poczekaj/.test((notice(await ask(ala, 'jeszcze jedno', 400)) || {}).text), 'drugie pytanie od razu jest wstrzymane (cooldown 8 s na osobę)');
@@ -56,9 +64,9 @@ const reqNet = (method, p, body, headers) => new Promise(res => { const r = http
   ok(seen.length === 2 && seen[1].body.messages.some(m => m.role === 'system' && m.content.includes('tajny kontekst 4711')), 'z aiContext = true 10 ostatnich wiadomości trafia jako kontekst');
   await setCfg({ aiContext: false });
   // --- awaria OpenRouter ---
-  mode = 'err'; ms = await ask(cat, 'test awarii');
+  mode = 'err'; const before = seen.length; ms = await ask(cat, 'test awarii', 1500);
   const fail = ms.find(m => m.t === 'msg' && m.m.ai === 'a');
-  ok(fail && /chwilowo niedostępne/.test(fail.m.text) && !/SECRET-DETAIL|boom|sk-or/.test(JSON.stringify(ms)), 'błąd OpenRouter: goście widzą ogólny komunikat, bez szczegółów i klucza'); mode = 'ok';
+  ok(fail && /chwilowo niedostępne/.test(fail.m.text) && !/SECRET-DETAIL|boom|sk-or/.test(JSON.stringify(ms)), 'błąd OpenRouter: goście widzą ogólny komunikat, bez szczegółów i klucza'); ok(seen.length - before === 2, 'przy awarii serwer próbuje kolejnych darmowych modeli (2 próby)', seen.length - before); mode = 'ok';
   // --- host i moderacja ---
   ok(/wymaga roli hosta/.test(await cmd(cat, 'ai off')) || /dostępna dla hosta/.test(await cmd(cat, 'ai off')), 'zwykła osoba nie wyłączy AI w pokoju');
   ok(/wyłączone/.test(await cmd(host, 'ai off')), 'host wyłącza AI w swoim pokoju'); await sleep(250);

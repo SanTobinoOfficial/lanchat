@@ -25,6 +25,7 @@ jobs:
       - run: node test6.js
       - run: node test7.js
       - run: node test8.js
+      - run: node test9.js
 
   build:
     strategy:
