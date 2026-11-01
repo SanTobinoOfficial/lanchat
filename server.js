@@ -59,6 +59,27 @@ function loadRooms() {
 }
 const accId = secret => crypto.createHash('sha256').update('lc|' + secret).digest('hex').slice(0, 32);
 const cleanAddr = a => clip(a, 80).replace(/[^\w.:\[\]-]/g, '');
+// rejestr „kto, z jakiego IP i urządzenia” – tylko dla metod zapisu „u admina” i „w przeglądarce” (tryb base64 niczego tu nie zostawia)
+const DEV_FILE = path.join(DATA, 'devices.json'), devices = readJson(DEV_FILE);
+let devTimer = null; const saveDevices = () => { clearTimeout(devTimer); devTimer = setTimeout(() => writeAtomic(DEV_FILE, JSON.stringify(devices)), 600); };
+function parseDevice(ua) {
+  ua = String(ua || '');
+  const os = /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Mac OS X|Macintosh/.test(ua) ? 'macOS' : /CrOS/.test(ua) ? 'ChromeOS' : /Linux/.test(ua) ? 'Linux' : 'nieznany system';
+  const br = /Edg\//.test(ua) ? 'Edge' : /OPR\/|Opera/.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'przeglądarka';
+  const type = /iPad|Tablet/.test(ua) || (/Android/.test(ua) && !/Mobile/.test(ua)) ? 'tablet' : /Mobi|iPhone|Android/.test(ua) ? 'telefon' : 'komputer';
+  return { os, browser: br, type, label: os + ' · ' + br + ' · ' + type };
+}
+const deviceHdr = req => { try { const x = JSON.parse(String(req.headers['x-device'] || '{}')); return { w: Math.min(99999, +x.w | 0), h: Math.min(99999, +x.h | 0) }; } catch { return { w: 0, h: 0 }; } };
+function noteSeen(secret, ip, ua, extra, name, method) {
+  if (!secret || method === 'base64') return;
+  const id = accId(secret), now = Date.now(), rec = devices[id] || (devices[id] = { first: now, ips: {}, devices: {} });
+  rec.name = clip(name, 24) || rec.name || 'Gość'; rec.method = method === 'browser' ? 'browser' : 'server'; rec.last = now; rec.ips[ip] = now;
+  const k = crypto.createHash('sha1').update(String(ua)).digest('hex').slice(0, 8), d = rec.devices[k] || { first: now };
+  rec.devices[k] = Object.assign(d, { label: parseDevice(ua).label, screen: extra && extra.w ? extra.w + '×' + extra.h : d.screen || '', last: now, ip });
+  const ips = Object.entries(rec.ips); if (ips.length > 8) rec.ips = Object.fromEntries(ips.sort((x, y) => y[1] - x[1]).slice(0, 8));
+  const dv = Object.entries(rec.devices); if (dv.length > 8) rec.devices = Object.fromEntries(dv.sort((x, y) => y[1].last - x[1].last).slice(0, 8));
+  saveDevices();
+}
 function cleanAccount(b, old) {
   const o = Object.assign({}, old);
   if ('name' in b) o.name = clip(b.name, 24).trim() || old.name || 'Gość';
@@ -215,7 +236,7 @@ const notice = (c, text) => wsSend(c.sock, JSON.stringify({ t: 'notice', text })
 // rozsyłaj zmiany obecności (AFK → Niedostępny) bez udziału klientów
 setInterval(() => { for (const r of rooms.values()) { const sig = [...r.members.values()].map(m => m.id + presenceOf(r, m)).join(); if (sig !== r._sig && r.clients.size) sendUsers(r); } }, Math.min(20000, Math.max(300, AFK_MS / 3))).unref();
 
-function onJoin(sock, ip, m) {
+function onJoin(sock, ip, m, ua) {
   const err = code => { wsSend(sock, JSON.stringify({ t: 'error', code })); sock.end(); };
   const r = rooms.get(normCode(m.room));
   if (!r) return err('notfound');
@@ -235,7 +256,7 @@ function onJoin(sock, ip, m) {
   const c = {
     id, cid, sock, ip: cleanIp(ip), room: r, isAdmin, isHost, joined: Date.now(),
     name: clip(m.name, 24).trim() || 'Gość', color: /^#[0-9a-f]{6}$/i.test(m.color) ? m.color : '#5b8def',
-    uploadKey: rid(16), stamps: [], lastMsg: 0, avatar: mem ? mem.avatar : '', bio: clip(m.bio, 190),
+    uploadKey: rid(16), stamps: [], lastMsg: 0, avatar: mem ? mem.avatar : '', bio: clip(m.bio, 190), ua: ua || '', priv: m.method === 'base64',
     status: ['online', 'idle', 'dnd'].includes(m.status) ? m.status : 'online',
   };
   uploadKeys.set(c.uploadKey, c);
@@ -243,6 +264,7 @@ function onJoin(sock, ip, m) {
   sock.client = c;
   r.members.set(id, Object.assign(mem || { id, joined: Date.now(), host: false, adm: false }, { host: !!(mem && mem.host) || isHost, adm: !!(mem && mem.adm) || isAdmin }));
   syncMember(r, c);
+  if (!c.priv) noteSeen(cid, c.ip, ua, {}, c.name, m.method === 'browser' ? 'browser' : 'server');   // tryb base64: żadnego śladu IP/urządzenia
   wsSend(sock, JSON.stringify({
     t: 'joined', you: memberView(r, r.members.get(id), c), uploadKey: c.uploadKey, room: roomInfo(r),
     users: usersFor(r, c), history: r.history,
@@ -347,6 +369,7 @@ function handleMsg(c, m) {
       if (/^#[0-9a-f]{6}$/i.test(m.color)) c.color = m.color;
       if ('bio' in m) c.bio = clip(m.bio, 190);
       if (['online', 'idle', 'dnd'].includes(m.status)) c.status = m.status;
+      if (m.method === 'base64' || m.method === 'browser' || m.method === 'server') { c.priv = m.method === 'base64'; if (!c.priv) noteSeen(c.cid, c.ip, c.ua, {}, c.name, m.method); }   // zmiana metody zapisu w trakcie sesji
       if ('avatar' in m) {
         const u = clip(m.avatar, 100), med = /^\/media\/[0-9a-f]{32}$/.test(u) && media.get(u.slice(7));
         if (u === '') c.avatar = ''; else if (med && med.room === r.code) c.avatar = u;
@@ -654,17 +677,42 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, Object.assign({ 'content-type': m.type, 'cache-control': 'public, max-age=86400', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; sandbox", 'cross-origin-resource-policy': 'cross-origin' }, CORS));
       return res.end(buf);
     }
+    if (p === '/api/account/recognize' && req.method === 'GET') {   // konta „u admina”, które serwer kojarzy z IP odwiedzającego (zastępuje kody konta)
+      const ip = cleanIp(req.socket.remoteAddress);
+      const found = Object.entries(devices).filter(([id, rec]) => rec.method === 'server' && rec.ips[ip] && accounts[id] && accounts[id].secret)
+        .sort((x, y) => y[1].last - x[1].last).slice(0, 5).map(([id, rec]) => ({ id, name: rec.name, device: (Object.values(rec.devices).sort((x, y) => y.last - x.last)[0] || {}).label || '', last: rec.last }));
+      return sendJson(res, 200, { ip, found });
+    }
+    if (p === '/api/account/adopt' && req.method === 'POST') {      // „to ja”: wymaga zgodnego IP i potwierdzenia przez użytkownika
+      const b = await readJsonBody(req), ip = cleanIp(req.socket.remoteAddress), id = clip(b.id, 40);
+      if (!devices[id] || !devices[id].ips[ip] || !accounts[id] || !accounts[id].secret) return sendJson(res, 404, { error: 'Serwer nie kojarzy tego konta z Twoim IP.' });
+      return sendJson(res, 200, { secret: accounts[id].secret });
+    }
+    if (p === '/api/seen') {   // tryb „w przeglądarce”: profil jest u użytkownika, serwer zapisuje tylko IP i urządzenie
+      const secret = String(req.headers['x-account'] || '');
+      if (!/^[\w-]{16,64}$/.test(secret)) return sendJson(res, 400, { error: 'id' });
+      const ip = cleanIp(req.socket.remoteAddress), ua = req.headers['user-agent'] || '';
+      if (req.method === 'POST') { const b = await readJsonBody(req); noteSeen(secret, ip, ua, deviceHdr(req), b.name, b.method === 'browser' ? 'browser' : b.method === 'base64' ? 'base64' : 'server'); }
+      const rec = devices[accId(secret)];   // przejrzystość: pokazujemy użytkownikowi dokładnie to, co zapisaliśmy
+      return sendJson(res, 200, { ip, device: parseDevice(ua).label, record: rec ? { method: rec.method, first: rec.first, last: rec.last, ips: Object.entries(rec.ips).map(([k, t]) => ({ ip: k, last: t })), devices: Object.values(rec.devices) } : null });
+    }
     if (p === '/api/account') {
       const secret = String(req.headers['x-account'] || '');
       if (!/^[\w-]{16,64}$/.test(secret)) return sendJson(res, 400, { error: 'id' });
-      const id = accId(secret);
-      if (req.method === 'GET') return sendJson(res, 200, { exists: !!accounts[id], profile: accounts[id] || null });
+      const id = accId(secret), ip = cleanIp(req.socket.remoteAddress), ua = req.headers['user-agent'] || '';
+      if (req.method === 'GET') { if (accounts[id]) noteSeen(secret, ip, ua, deviceHdr(req), accounts[id].name, 'server'); const prof = accounts[id] ? Object.assign({}, accounts[id]) : null; if (prof) delete prof.secret; return sendJson(res, 200, { exists: !!accounts[id], profile: prof }); }
+      if (req.method === 'DELETE') {   // usunięcie profilu z serwera; ?keepLog=1 zostawia tylko wpis IP/urządzenie (przejście na metodę „w przeglądarce”)
+        delete accounts[id]; if (!u.searchParams.get('keepLog')) { delete devices[id]; saveDevices(); } saveAccounts();
+        return sendJson(res, 200, { ok: true });
+      }
       if (req.method === 'PUT' || req.method === 'POST') {
         const raw = await readBody(req, 170000).catch(() => null);
         if (!raw) return sendJson(res, 413, { error: 'too large' });
         let b = {}; try { b = JSON.parse(raw.toString('utf8')); } catch {}
         if (!accounts[id] && Object.keys(accounts).length >= 2000) return sendJson(res, 429, { error: 'Za dużo kont na tej instancji.' });
         accounts[id] = cleanAccount(b && typeof b === 'object' ? b : {}, accounts[id] || {});
+        accounts[id].secret = secret;   // potrzebne do „to ja” (rozpoznanie po IP); plik leży tylko na dysku admina
+        noteSeen(secret, ip, ua, deviceHdr(req), accounts[id].name, 'server');
         saveAccounts();
         return sendJson(res, 200, { ok: true });
       }
@@ -715,7 +763,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, {
         version: VERSION, isAdmin: admin, adminToken: admin ? ADMIN_TOKEN : undefined,
         hostName: settings.hostName, canHost: admin || settings.allowLanHosting, giphy: !!settings.giphyKey,
-        urls: lanIps().map(i => `http://${i.address}:${listenPort}`), uploadLimitMB: settings.uploadLimitMB, repo: REPO,
+        urls: lanIps().map(i => `http://${i.address}:${listenPort}`), uploadLimitMB: settings.uploadLimitMB, repo: REPO, ip: cleanIp(req.socket.remoteAddress), device: parseDevice(req.headers['user-agent']).label,
         serve: sea && settings.serveInstaller ? process.platform : null,
       });
     }
@@ -769,7 +817,8 @@ const server = http.createServer(async (req, res) => {
           settings: { ...settings, giphyKey: settings.giphyKey ? '••••' + settings.giphyKey.slice(-4) : '' }, listenPort,
           autostart: { supported: autostartSupported(), on: autostartSupported() && fs.existsSync(STARTUP_LNK) },
           rooms: [...rooms.values()].map(r => ({ code: r.code, name: r.name, locked: !!r.password, isPublic: r.isPublic, created: r.created, mediaMB: +(r.mediaBytes / 1048576).toFixed(1),
-            users: [...r.clients.values()].map(c => ({ id: c.id, name: c.name, ip: c.ip, role: realRole(r, c.id) })) })),
+            users: [...r.clients.values()].map(c => ({ id: c.id, name: c.name, ip: c.priv ? null : c.ip, priv: !!c.priv, role: realRole(r, c.id) })) })),
+          people: Object.values(devices).sort((x, y) => y.last - x.last).slice(0, 100).map(d => ({ name: d.name, method: d.method, last: d.last, ips: Object.keys(d.ips), devices: Object.values(d.devices).map(v => v.label + (v.screen ? ' · ' + v.screen : '')) })),
         });
       }
       if (p === '/api/admin/settings') {
@@ -795,7 +844,7 @@ const server = http.createServer(async (req, res) => {
 server.on('upgrade', (req, sock) => {
   const key = req.headers['sec-websocket-key'];
   if (!key || new URL(req.url, 'http://x').pathname !== '/ws') return sock.destroy();
-  const ip = req.socket.remoteAddress;
+  const ip = req.socket.remoteAddress, ua = String(req.headers['user-agent'] || '').slice(0, 300);
   sock.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' +
     crypto.createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64') + '\r\n\r\n');
   sock.setNoDelay(true);
@@ -806,7 +855,7 @@ server.on('upgrade', (req, sock) => {
     alive = Date.now();
     let m; try { m = JSON.parse(txt); } catch { return; }
     if (!m || typeof m !== 'object') return;
-    if (!sock.client) { if (m.t === 'join') onJoin(sock, ip, m); return; }
+    if (!sock.client) { if (m.t === 'join') onJoin(sock, ip, m, ua); return; }
     handle(sock.client, m);
   }, () => { clearTimeout(joinTimer); clearInterval(ping); if (sock.client) onLeave(sock.client); });
   sock.on('data', () => { alive = Date.now(); });
@@ -814,7 +863,7 @@ server.on('upgrade', (req, sock) => {
 
 // pokoje są trwałe – znikają tylko po zamknięciu przez hosta/admina
 loadRooms();
-const flush = () => { saveRoomsNow(); clearTimeout(accTimer); writeAtomic(ACC_FILE, JSON.stringify(accounts)); };
+const flush = () => { saveRoomsNow(); clearTimeout(accTimer); writeAtomic(ACC_FILE, JSON.stringify(accounts)); clearTimeout(devTimer); writeAtomic(DEV_FILE, JSON.stringify(devices)); };
 process.on('exit', flush);
 process.on('SIGINT', () => process.exit(0));
 process.on('SIGTERM', () => process.exit(0));

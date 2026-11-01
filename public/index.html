@@ -50,6 +50,11 @@ textarea.inp{height:auto;resize:vertical;min-height:72px;line-height:1.4}
 .tag.host{background:#c27c0e}.tag.mod{background:var(--green)}
 .code{font-family:var(--code);letter-spacing:2px;color:var(--head1)}
 
+/* metody zapisu profilu */
+.mth{display:grid;gap:8px}
+.mth button{display:flex;gap:12px;align-items:flex-start;text-align:left;padding:10px 12px;border:2px solid var(--line);border-radius:8px;color:var(--text);transition:border-color .15s,background .15s}
+.mth button:hover{background:var(--mod-hover)}.mth button.on{border-color:var(--brand);background:rgba(88,101,242,.14)}
+.mth .mi{font-size:22px;line-height:1.2}.mth b{display:block;color:var(--head1);font-size:15px}.mth .muted{font-size:13px;display:block}
 /* ===== QOL ===== */
 #chatView{position:relative}
 .dsep{display:flex;align-items:center;gap:10px;margin:18px 16px 6px;color:var(--muted);font-size:12px;font-weight:600}
@@ -478,22 +483,25 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
       <button class="btn link sm" id="lToSite" style="margin:-12px 0 8px -12px">← Strona startowa</button>
       <div class="olog"><svg class="logo"><use href="#lc-logo"/></svg></div>
       <h1>Witaj w LanChat 👋</h1>
-      <div class="sub">Ustaw swój profil. Zapiszemy go na serwerze, więc wrócisz do niego z każdego urządzenia.</div>
+      <div class="sub">Ustaw profil i wybierz, gdzie go zapisać.</div>
       <div class="lav" id="lAvWrap" title="Dodaj zdjęcie profilowe"><div id="lAv"></div><span class="plus">+</span></div>
       <div class="field"><label class="lbl" for="lName">Nick</label><input id="lName" class="inp" maxlength="24" placeholder="Jak mamy Cię nazywać?" autocomplete="off"></div>
       <div class="field"><label class="lbl" for="lBio">O mnie <i>(opcjonalnie)</i></label><textarea id="lBio" class="inp" maxlength="190" placeholder="Kilka słów o Tobie"></textarea></div>
       <div class="field"><label class="lbl">Kolor nicku</label><div class="sw" id="lSw"></div></div>
       <div class="field"><label class="lbl">Motyw</label><div class="seg" id="lTheme"><button data-v="dark">🌙 Ciemny</button><button data-v="light">☀️ Jasny</button></div></div>
+      <div class="field"><label class="lbl">Gdzie zapisać profil?</label><div id="lMethod"></div><div class="muted" id="lMethodNote" style="margin-top:8px"></div></div>
       <div class="err" id="lErr"></div>
       <button class="btn big" id="lGo">Zaczynij</button>
       <div style="text-align:center;margin-top:12px"><button class="btn link sm" id="lRestore">Mam już konto</button></div>
     </div>
     <div id="lRest" hidden>
-      <h1>Przywróć konto</h1>
-      <div class="sub">Wpisz kod konta (znajdziesz go w Ustawienia → Zaawansowane na urządzeniu, na którym masz konto).</div>
-      <div class="field"><label class="lbl" for="lCode">Kod konta</label><input id="lCode" class="inp code" placeholder="kod konta" autocomplete="off"></div>
+      <h1>Mam już konto</h1>
+      <div class="sub">Odzyskaj profil: serwer może rozpoznać Cię po IP, albo wklej kod base64.</div>
+      <div class="field" id="lFound"></div>
+      <div class="field"><label class="lbl" for="lB64">Kod base64</label><textarea id="lB64" class="inp" rows="3" placeholder="Wklej kod, który zapisałeś(-aś) wcześniej"></textarea></div>
+      <div class="muted" style="margin-bottom:8px">W trybie „w tej przeglądarce” profil wraca sam, o ile to ta sama przeglądarka.</div>
       <div class="err" id="lrErr"></div>
-      <button class="btn big" id="lRestGo">Przywróć</button>
+      <button class="btn big" id="lRestGo">Wczytaj kod</button>
       <div style="text-align:center;margin-top:12px"><button class="btn link sm" id="lBack">Wróć</button></div>
     </div>
   </div>
@@ -592,7 +600,12 @@ const initials = n => { const w = String(n).trim().split(/\s+/).filter(Boolean);
 /* ---------- state ---------- */
 let me = {}, account = null, view = 'home', cur = null;
 const conns = new Map();   // key (addr/code) -> połączenie z pokojem – można być w wielu naraz
-let cid = store.get('cid'); if (!cid) { cid = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join(''); store.set('cid', cid); }
+// metoda zapisu profilu: 'server' (u admina) | 'browser' (w przeglądarce) | 'base64' (nic nie jest zapisywane; użytkownik trzyma kod)
+const ss = { get(k, d) { try { const v = sessionStorage.getItem('lc_' + k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { sessionStorage.setItem('lc_' + k, JSON.stringify(v)); } catch {} }, del(k) { try { sessionStorage.removeItem('lc_' + k); } catch {} } };
+let method = store.get('method', 'server');
+const newCid = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');
+let cid = method === 'base64' ? (ss.get('cid') || (() => { const c = newCid(); ss.set('cid', c); return c; })()) : (store.get('cid') || (() => { const c = newCid(); store.set('cid', c); return c; })());
+const accHeaders = () => ({ 'x-account': cid, 'x-device': JSON.stringify({ w: screen.width, h: screen.height }) });
 let soundOn = true, lastTypingSent = 0, winUnread = 0, replyTo = null, memOpen = store.get('mem', innerWidth > 1200);
 const connKey = (addr, code) => addr + '/' + code;
 const curSt = () => cur && cur.st;
@@ -643,10 +656,82 @@ const normAccount = p => Object.assign({ name: 'Gość', color: COLORS[0], bio: 
 let saveT = null;
 function syncRooms() { account.rooms = [...conns.values()].map(C => ({ addr: C.addr, code: C.code, name: C.name, hostKey: C.hostKey, password: C.password, muted: C.muted })); }
 function applyLook() { document.body.classList.toggle('compact', !!account.compact); document.documentElement.style.setProperty('--fs', (16 * (account.fontScale || 100) / 100) + 'px'); }
+let seenAt = 0;
+function seenPing(force, name) { if (!force && Date.now() - seenAt < 60000) return Promise.resolve(); seenAt = Date.now(); return fetch('/api/seen', { method: 'POST', headers: accHeaders(), body: JSON.stringify({ name: name || (account && account.name) || 'Gość', method: 'browser' }) }).catch(() => {}); }   // przy starcie `account` jeszcze nie istnieje – imię przychodzi z parametru
 function saveAccount(now) {
   clearTimeout(saveT);
-  const run = () => { syncRooms(); fetch('/api/account', { method: 'PUT', headers: { 'x-account': cid }, body: JSON.stringify(account) }).catch(() => {}); };
-  if (now) run(); else saveT = setTimeout(run, 400);
+  const run = () => {
+    syncRooms();
+    if (method === 'server') return fetch('/api/account', { method: 'PUT', headers: accHeaders(), body: JSON.stringify(account) }).catch(() => {});
+    if (method === 'browser') { store.set('profile', account); return seenPing(); }
+    ss.set('profile', account); return Promise.resolve();   // base64: dane tylko w tej karcie (do zamknięcia), nic nie trafia na serwer
+  };
+  if (now) return run(); saveT = setTimeout(run, 400);
+}
+async function loadAccount() {
+  if (method === 'browser') { const p = store.get('profile'); if (p) { seenPing(false, p.name); return normAccount(p); } return null; }
+  if (method === 'base64') { const p = ss.get('profile'); return p ? normAccount(p) : null; }
+  try { const r = await (await fetch('/api/account', { headers: accHeaders() })).json(); return r.exists ? normAccount(r.profile) : null; } catch { return null; }
+}
+// ----- base64: wszystkie dane o użytkowniku w jednym tekście -----
+function b64encode(obj) { const bytes = new TextEncoder().encode(JSON.stringify(obj)); let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(bin); }
+function b64decode(str) { const s = String(str).replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/'); const bin = atob(s); return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)))); }
+function buildExport(withAvatar) { syncRooms(); const p = Object.assign({}, account); delete p.rooms; if (!withAvatar) p.avatar = ''; return { app: 'lanchat', v: 1, cid, profile: p, rooms: account.rooms }; }
+const METHODS = [
+  ['server', '🖥️', 'U admina (na serwerze)', 'Wrócisz z każdego urządzenia – serwer rozpozna Cię po IP. Serwer zapisuje Twój profil, adres IP i rodzaj urządzenia.'],
+  ['browser', '🌐', 'W tej przeglądarce', 'Profil zostaje tylko w tej przeglądarce. Serwer zapisuje wyłącznie Twój adres IP i rodzaj urządzenia.'],
+  ['base64', '🔐', 'Kod base64', 'Nic nie jest zapisywane: ani profil, ani IP, ani urządzenie. Dostajesz kod, który wklejasz następnym razem.'],
+];
+function methodPicker(current, onPick) {
+  const box = el('div', { class: 'mth' });
+  METHODS.forEach(([k, ic, t, d]) => box.append(el('button', { type: 'button', class: k === current ? 'on' : '', 'data-m': k, onclick: () => onPick(k) }, el('span', { class: 'mi', text: ic }), el('span', null, el('b', { text: t }), el('span', { class: 'muted', text: d })))));
+  return box;
+}
+function exportDialog(after) {
+  const ta = el('textarea', { class: 'inp code', readonly: 'readonly', rows: 6, style: 'font-size:12px;letter-spacing:0;word-break:break-all' }), sz = el('span', { class: 'muted' }), cb = el('input', { type: 'checkbox' }); cb.checked = true;
+  const fill = () => { ta.value = b64encode(buildExport(cb.checked)); sz.textContent = ta.value.length + ' znaków'; }; cb.onchange = fill; fill();
+  dialog({ title: 'Twój kod base64', sub: 'Wszystkie dane o Tobie w jednym tekście. Wklej go następnym razem w „Mam już konto”.', body: el('div', null, ta,
+    el('div', { class: 'row', style: 'margin-top:8px' }, el('button', { class: 'btn sm', text: 'Kopiuj kod', onclick: () => copy(ta.value, 'Skopiowano kod base64') }), sz), el('label', { class: 'chk' }, cb, 'Dołącz zdjęcie profilowe (dłuższy kod)'),
+    el('div', { class: 'note', style: 'margin-top:8px', text: 'Kod zawiera Twoją tożsamość i hasła do pokoi – traktuj go jak hasło i nikomu go nie pokazuj.' })), buttons: [{ text: 'Zapisałem(-am) kod', onclick: () => { if (after) after(); } }] });
+}
+async function importFromText(text, inApp) {
+  let d; try { d = b64decode(text); } catch { return toast('To nie jest poprawny kod base64.'); }
+  if (!d || d.app !== 'lanchat' || d.v !== 1 || !/^[\w-]{16,64}$/.test(d.cid || '') || !d.profile || typeof d.profile.name !== 'string') return toast('Ten kod nie wygląda na dane LanChat.');
+  const rooms = (Array.isArray(d.rooms) ? d.rooms : []).slice(0, 50).filter(r => r && typeof r.addr === 'string' && typeof r.code === 'string').map(r => ({ addr: r.addr, code: r.code, name: String(r.name || '').slice(0, 40), hostKey: typeof r.hostKey === 'string' ? r.hostKey : undefined, password: typeof r.password === 'string' ? r.password.slice(0, 64) : '', muted: !!r.muted }));
+  const run = async () => {
+    cid = d.cid; account = normAccount(Object.assign({}, d.profile, { rooms }));
+    for (const r of rooms) addConn(r.addr, r.code, r);   // saveAccount przebudowuje listę pokoi z połączeń – bez tego import ją wyzerowałby
+    if (!inApp) { method = 'base64'; store.set('method', 'base64'); }
+    if (method === 'base64') { ss.set('cid', cid); store.del('cid'); } else store.set('cid', cid);
+    await saveAccount(true); if (inApp) location.reload(); else startApp();
+  };
+  if (inApp) confirmBox('Wczytanie kodu ZASTĄPI Twój obecny profil, pokoje i ustawienia na tym urządzeniu. Kontynuować?', run, 'Wczytaj'); else await run();
+}
+// zmiana metody zapisu (z przeniesieniem danych i – tam, gdzie trzeba – skasowaniem śladów na serwerze)
+function switchMethod(to) {
+  if (to === method) return;
+  const done = msg => { store.set('method', method); conns.forEach(C => sendTo(C, { t: 'profile', method })); toast(msg); openSettings('adv'); };
+  if (to === 'base64') return confirmBox('Serwer USUNIE Twój zapisany profil oraz wpis o Twoim IP i urządzeniu. Dane zostaną tylko w tej karcie (znikną po jej zamknięciu), więc dostaniesz kod base64 do skopiowania. Kontynuować?', async () => {
+    await fetch('/api/account', { method: 'DELETE', headers: accHeaders() }).catch(() => {});
+    ss.set('cid', cid); store.del('cid'); store.del('profile'); method = 'base64'; await saveAccount(true); store.set('method', method);
+    conns.forEach(C => sendTo(C, { t: 'profile', method })); exportDialog(() => openSettings('adv'));
+  }, 'Przełącz na base64');
+  if (to === 'browser') return (async () => {
+    await fetch('/api/account?keepLog=1', { method: 'DELETE', headers: accHeaders() }).catch(() => {});
+    store.set('cid', cid); ss.del('cid'); ss.del('profile'); method = 'browser'; await saveAccount(true); await seenPing(true); done('Profil jest teraz tylko w tej przeglądarce. Serwer zapisuje wyłącznie IP i urządzenie.');
+  })();
+  return (async () => { store.set('cid', cid); store.del('profile'); ss.del('cid'); ss.del('profile'); method = 'server'; await saveAccount(true); done('Profil jest teraz zapisany u admina (z IP i urządzeniem).'); })();
+}
+function logout() {
+  const msg = method === 'server' ? 'Wylogować? Profil zostaje na serwerze admina – odzyskasz go po rozpoznaniu IP albo kodem base64.'
+    : method === 'browser' ? 'Wylogować? Profil jest tylko w tej przeglądarce i zostanie USUNIĘTY. Jeśli chcesz go zachować, najpierw skopiuj kod base64.' : 'Wylogować? Dane istnieją tylko w tej karcie i znikną. Jeśli chcesz je zachować, najpierw skopiuj kod base64.';
+  confirmBox(msg, () => { store.del('cid'); store.del('profile'); try { sessionStorage.clear(); } catch {} location.reload(); }, 'Wyloguj');
+}
+async function adoptAccount(id) {
+  const r = await fetch('/api/account/adopt', { method: 'POST', headers: accHeaders(), body: JSON.stringify({ id }) });
+  if (!r.ok) return $('#lrErr').textContent = 'Nie udało się – serwer nie kojarzy tego konta z Twoim IP.';
+  cid = (await r.json()).secret; method = 'server'; store.set('method', 'server'); store.set('cid', cid); ss.del('cid'); ss.del('profile');
+  account = await loadAccount(); if (!account) return $('#lrErr').textContent = 'To konto już nie istnieje na serwerze.'; startApp();
 }
 const statusLabel = { online: 'Online', idle: 'AFK', dnd: 'Nie przeszkadzać', afk: 'AFK (rozłączony/a)', offline: 'Niedostępny/a' };
 function renderUserPanel() {
@@ -661,41 +746,43 @@ $('#snd').onclick = () => { soundOn = !soundOn; account.sound = soundOn; updSnd(
 
 /* ---------- landing (pierwsze uruchomienie) ---------- */
 function showLanding() {
-  const d = { name: store.get('name', '') || (me.isAdmin ? me.hostName : ''), color: store.get('color', COLORS[Math.floor(Math.random() * COLORS.length)]), bio: '', avatar: '', theme: store.get('theme', 'dark') };
+  const d = { method: method === 'base64' ? 'base64' : method === 'browser' ? 'browser' : 'server', name: store.get('name', '') || (me.isAdmin ? me.hostName : ''), color: store.get('color', COLORS[Math.floor(Math.random() * COLORS.length)]), bio: '', avatar: '', theme: store.get('theme', 'dark') };
   if (!/^#[0-9a-f]{6}$/i.test(d.color)) d.color = COLORS[0];
   $('#site').hidden = true; $('#onboard').hidden = false; $('#app').hidden = true; document.title = 'Zacznij – LanChat';
   const drawAv = () => { $('#lAv').replaceChildren(avatar($('#lName').value || '?', d.color, 96, null, d.avatar)); };
   const drawSw = () => $('#lSw').replaceChildren(swatches(d.color, c => { d.color = c; drawAv(); }));
   const drawTheme = () => { applyTheme(d.theme); $('#lTheme').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === d.theme)); };
-  $('#lName').value = d.name; $('#lBio').value = d.bio; drawAv(); drawSw(); drawTheme();
+  const drawMethod = () => { $('#lMethod').replaceChildren(methodPicker(d.method, k => { d.method = k; drawMethod(); })); $('#lMethodNote').textContent = d.method === 'base64' ? 'Serwer nie zapisze Twojego IP ani urządzenia. Po utworzeniu profilu dostaniesz kod do skopiowania.' : 'Serwer zapisze Twój adres IP (' + (me.ip || '?') + ') i rodzaj urządzenia (' + (me.device || '?') + ') w rejestrze admina.'; };
+  $('#lName').value = d.name; $('#lBio').value = d.bio; drawAv(); drawSw(); drawTheme(); drawMethod();
   $('#lName').oninput = drawAv; $('#lAvWrap').onclick = () => pickAvatar(u => { d.avatar = u; drawAv(); });
   $('#lTheme').onclick = e => { const v = e.target.dataset && e.target.dataset.v; if (v) { d.theme = v; drawTheme(); } };
   $('#lName').focus();
   const go = async () => {
     const name = $('#lName').value.trim(); if (!name) { $('#lErr').textContent = 'Wpisz swój nick, żeby zacząć.'; return $('#lName').focus(); }
     account = normAccount({ name, color: d.color, bio: $('#lBio').value.trim(), avatar: d.avatar, theme: d.theme, sound: true, status: 'online', rooms: [] });
-    $('#lGo').disabled = true;
-    try { const r = await fetch('/api/account', { method: 'PUT', headers: { 'x-account': cid }, body: JSON.stringify(account) }); if (!r.ok) throw 0; } catch { $('#lGo').disabled = false; return $('#lErr').textContent = 'Nie udało się zapisać konta na serwerze. Spróbuj ponownie.'; }
-    store.del('name'); startApp();
+    $('#lGo').disabled = true; method = d.method; store.set('method', method);
+    if (method === 'base64') { ss.set('cid', cid); store.del('cid'); } else { store.set('cid', cid); ss.del('cid'); }
+    try { await saveAccount(true); if (method === 'server') { const c = await (await fetch('/api/account', { headers: accHeaders() })).json(); if (!c.exists) throw 0; } } catch { $('#lGo').disabled = false; return $('#lErr').textContent = 'Nie udało się zapisać profilu na serwerze. Spróbuj ponownie.'; }
+    store.del('name'); if (method === 'base64') exportDialog(() => startApp()); else startApp();
   };
   $('#lGo').onclick = go; $('#lName').onkeydown = e => { if (e.key === 'Enter') go(); };
-  $('#lRestore').onclick = () => { $('#lMain').hidden = true; $('#lRest').hidden = false; $('#lCode').focus(); };
-  $('#lBack').onclick = () => { $('#lMain').hidden = false; $('#lRest').hidden = true; };
-  const restore = async () => {
-    const code = $('#lCode').value.trim().replace(/\s+/g, '');
-    if (!/^[\w-]{16,64}$/.test(code)) return $('#lrErr').textContent = 'To nie wygląda na kod konta.';
-    let r = {}; try { r = await (await fetch('/api/account', { headers: { 'x-account': code } })).json(); } catch {}
-    if (!r.exists) return $('#lrErr').textContent = 'Nie znaleziono konta z tym kodem na tym serwerze.';
-    cid = code; store.set('cid', cid); account = normAccount(r.profile); startApp();
+  $('#lRestore').onclick = () => {
+    $('#lMain').hidden = true; $('#lRest').hidden = false; $('#lrErr').textContent = ''; const box = $('#lFound'); box.textContent = 'Sprawdzam, czy serwer Cię rozpoznaje po IP…';
+    fetch('/api/account/recognize', { headers: accHeaders() }).then(r => r.json()).then(j => {
+      box.textContent = ''; box.append(el('label', { class: 'lbl', text: 'Rozpoznane po IP (' + j.ip + ')' }));
+      if (!j.found.length) box.append(el('div', { class: 'muted', text: 'Serwer nie kojarzy tego IP z żadnym kontem zapisanym u admina.' }));
+      j.found.forEach(f => box.append(el('div', { class: 'rcard', style: 'margin-bottom:8px;cursor:default' }, avatar(f.name, hsl(f.name), 36), el('div', { class: 'grow' }, el('b', { text: f.name }), el('span', { class: 'muted', text: (f.device || 'nieznane urządzenie') + ' · ostatnio ' + new Date(f.last).toLocaleString('pl-PL') })), el('button', { class: 'btn sm', text: 'To ja', onclick: () => adoptAccount(f.id) }))));
+    }).catch(() => { box.textContent = 'Nie udało się sprawdzić serwera.'; });
   };
-  $('#lRestGo').onclick = restore; $('#lCode').onkeydown = e => { if (e.key === 'Enter') restore(); };
+  $('#lBack').onclick = () => { $('#lMain').hidden = false; $('#lRest').hidden = true; };
+  $('#lRestGo').onclick = () => importFromText($('#lB64').value, false);
 }
 
 /* ---------- settings ---------- */
 function openSettings(tab = 'account') {
   const d = { name: account.name, bio: account.bio, color: account.color, avatar: account.avatar, status: account.status, theme: account.theme, sound: account.sound !== false, compact: !!account.compact, fontScale: account.fontScale || 100, notify: !!account.notify };
   const nav = el('div', { class: 'setnav' }), body = el('div', { class: 'setbody' });
-  const tabs = [['account', 'Moje konto'], ['look', 'Wygląd'], ['notif', 'Powiadomienia'], ['adv', 'Zaawansowane']];
+  const tabs = [['account', 'Moje konto'], ['look', 'Wygląd'], ['notif', 'Powiadomienia'], ['adv', 'Dane i zapis']];
   function draw() {
     nav.textContent = ''; tabs.forEach(([k, l]) => nav.append(el('button', { class: k === tab ? 'on' : '', text: l, onclick: () => { tab = k; draw(); } })));
     body.textContent = '';
@@ -723,11 +810,18 @@ function openSettings(tab = 'account') {
         canN ? null : el('div', { class: 'muted', text: 'Powiadomienia pulpitu są niedostępne: przeglądarka włącza je tylko na https lub pod adresem localhost. Na komputerze admina (localhost) zadziałają.' }),
         el('div', { class: 'muted', style: 'margin-top:12px', text: 'Wyciszysz pojedynczy pokój prawym przyciskiem myszy na jego ikonie po lewej.' }));
     } else {
-      const code = el('input', { class: 'inp code', readonly: 'readonly', type: 'password', value: cid });
-      body.append(el('p', { class: 'muted', style: 'margin-top:0', text: 'Profil i lista pokoi są zapisane na serwerze admina (' + location.host + '). Wrócisz do nich z tej samej przeglądarki automatycznie.' }),
-        field('Kod konta', code, '– do przywrócenia konta na innym urządzeniu. Nikomu go nie podawaj.'),
-        el('div', { class: 'row' }, el('button', { class: 'btn sec sm', text: 'Pokaż / ukryj', onclick: () => code.type = code.type === 'password' ? 'text' : 'password' }), el('button', { class: 'btn sec sm', text: 'Kopiuj', onclick: () => copy(cid, 'Skopiowano kod konta') })),
-        el('div', { style: 'margin-top:24px' }, el('button', { class: 'btn danger sm', text: 'Wyloguj z tego urządzenia', onclick: () => confirmBox('Wylogować? Konto zostaje na serwerze – wrócisz do niego, wpisując kod konta.', () => { store.del('cid'); location.reload(); }, 'Wyloguj') })));
+      const info = el('div', { class: 'muted' });
+      (async () => {
+        if (method === 'base64') { info.textContent = 'Tryb base64: serwer nie zapisuje ani Twojego IP, ani urządzenia (nic nie trafia do rejestru admina).'; return; }
+        try { const j = await (await fetch('/api/seen', { headers: accHeaders() })).json(); info.textContent = '';
+          info.append('Teraz serwer widzi: IP ' + j.ip + ' · ' + j.device, el('br'), j.record ? 'Zapisane w rejestrze admina: IP ' + j.record.ips.map(x => x.ip).join(', ') + ' · urządzenia: ' + j.record.devices.map(x => x.label + (x.screen ? ' (' + x.screen + ')' : '')).join('; ') : 'Jeszcze nic nie zapisano.'); }
+        catch { info.textContent = 'Nie udało się pobrać danych z serwera.'; }
+      })();
+      const imp = el('textarea', { class: 'inp', rows: 3, placeholder: 'Wklej kod base64, aby zastąpić ten profil' });
+      body.append(el('p', { class: 'muted', style: 'margin-top:0', text: 'Wybierz, gdzie przechowywane są Twoje dane (profil, lista pokoi, ustawienia). Zmiana przenosi dane i – gdzie trzeba – usuwa ślady z serwera.' }),
+        field('Metoda zapisu', methodPicker(method, switchMethod)), field('Co o Tobie wie serwer', info),
+        field('Kod base64', el('div', null, el('button', { class: 'btn sec sm', text: 'Pokaż mój kod base64', onclick: () => exportDialog() }), el('div', { style: 'margin-top:10px' }, imp), el('button', { class: 'btn sm', style: 'margin-top:8px', text: 'Wczytaj kod', onclick: () => importFromText(imp.value, true) }))),
+        el('div', { style: 'margin-top:24px' }, el('button', { class: 'btn danger sm', text: 'Wyloguj z tego urządzenia', onclick: logout })));
     }
   }
   draw();
@@ -755,7 +849,7 @@ function connect(C) {
   C.state = 'connecting'; C.error = ''; C.fatal = false; refreshAll(C);
   let sock; try { sock = new WebSocket('ws://' + C.addr + '/ws'); } catch { C.state = 'offline'; C.fatal = true; C.error = 'Nieprawidłowy adres.'; return refreshAll(C); }
   C.ws = sock; let joined = false;
-  sock.onopen = () => sock.send(JSON.stringify({ t: 'join', room: C.code, name: account.name, color: account.color, bio: account.bio, status: account.status, cid, password: C.password, hostKey: C.hostKey, adminToken: me.isAdmin && C.addr === location.host ? me.adminToken : undefined }));
+  sock.onopen = () => sock.send(JSON.stringify({ t: 'join', room: C.code, name: account.name, color: account.color, bio: account.bio, status: account.status, cid, method, password: C.password, hostKey: C.hostKey, adminToken: me.isAdmin && C.addr === location.host ? me.adminToken : undefined }));
   sock.onmessage = ev => { const m = JSON.parse(ev.data); if (m.t === 'joined') joined = true; onServer(C, m); };
   sock.onerror = () => {};
   sock.onclose = () => {
@@ -1348,10 +1442,13 @@ $('#adminBtn').onclick = () => {
     body.append(el('div', { class: 'muted', text: `Port ${s.listenPort} · dane w: ~/.lanchat` }), el('div', { class: 'cat', style: 'padding-left:0', text: 'Pokoje (' + s.rooms.length + ')' }));
     if (!s.rooms.length) body.append(el('div', { class: 'muted', text: 'Brak pokoi.' }));
     for (const r of s.rooms) {
-      const t = el('table'); for (const u of r.users) t.append(el('tr', null, el('td', { text: u.name }), el('td', { class: 'muted', text: u.ip }), el('td', { class: 'muted', text: u.role }), el('td', null, el('button', { class: 'btn danger sm', text: 'Ban IP', onclick: async () => { await api('ban', { ip: u.ip }); draw(); } }))));
+      const t = el('table'); for (const u of r.users) t.append(el('tr', null, el('td', { text: u.name }), el('td', { class: 'muted', text: u.ip || 'ukryty (tryb base64)' }), el('td', { class: 'muted', text: u.role }), el('td', null, u.ip ? el('button', { class: 'btn danger sm', text: 'Ban IP', onclick: async () => { await api('ban', { ip: u.ip }); draw(); } }) : null)));
       body.append(el('div', { class: 'rcard', style: 'display:block;margin-top:8px;cursor:default' }, el('div', { class: 'row' }, avatar(r.name, hsl(r.name), 36), el('div', { style: 'flex:1;min-width:0' }, el('b', { style: 'color:var(--head1)', text: r.name + (r.locked ? ' 🔒' : '') }), el('div', { class: 'muted', text: r.code + ' · ' + r.mediaMB + ' MB · ' + r.users.length + ' online' })),
         el('button', { class: 'btn sm', text: 'Wejdź', onclick: () => { closeModal(); const C = addConn(location.host, r.code, { name: r.name }); saveAccount(true); openRoom(C); if (C.state !== 'online') connect(C); } }), el('button', { class: 'btn danger sm', text: 'Zamknij', onclick: () => confirmBox('Zamknąć pokój „' + r.name + '” i usunąć jego historię?', async () => { await api('close', { code: r.code }); draw(); }, 'Zamknij') })), r.users.length ? t : null));
     }
+    body.append(el('div', { class: 'cat', style: 'padding-left:0', text: 'Osoby – IP i urządzenia (' + (s.people || []).length + ')' }));
+    if (!(s.people || []).length) body.append(el('div', { class: 'muted', text: 'Brak wpisów. Osoby w trybie base64 nie zostawiają śladu.' }));
+    for (const p of s.people || []) body.append(el('div', { class: 'muted', style: 'margin:4px 0' }, el('b', { style: 'color:var(--head1)', text: p.name }), ' · ' + ({ server: 'u admina', browser: 'w przeglądarce' })[p.method] + ' · IP: ' + p.ips.join(', ') + ' · ' + p.devices.join('; ') + ' · ' + new Date(p.last).toLocaleString('pl-PL')));
     const f = { hostName: el('input', { class: 'inp', value: cfg.hostName }), maxRooms: el('input', { class: 'inp', type: 'number', value: cfg.maxRooms }), maxUsersPerRoom: el('input', { class: 'inp', type: 'number', value: cfg.maxUsersPerRoom }), uploadLimitMB: el('input', { class: 'inp', type: 'number', value: cfg.uploadLimitMB }), giphyKey: el('input', { class: 'inp', value: cfg.giphyKey, placeholder: 'opcjonalnie – klucz API Giphy' }) };
     const lan = el('input', { type: 'checkbox' }); lan.checked = cfg.allowLanHosting; const srv = el('input', { type: 'checkbox' }); srv.checked = cfg.serveInstaller;
     const asu = el('input', { type: 'checkbox' }); asu.checked = !!(s.autostart && s.autostart.on); asu.onchange = async () => { const r = await api('autostart', { on: asu.checked }); asu.checked = !!r.on; toast(r.on ? 'LanChat będzie uruchamiał się z Windows' : 'Autostart wyłączony'); };
@@ -1538,10 +1635,10 @@ window.addEventListener('hashchange', () => {
 
 (async function boot() {
   try { me = await (await fetch('/api/me')).json(); } catch { document.body.textContent = 'Nie można połączyć z serwerem LanChat.'; return; }
-  let r = { exists: false }; try { r = await (await fetch('/api/account', { headers: { 'x-account': cid } })).json(); } catch {}
+  account = await loadAccount();
   const route = parseRoute(), raw = decodeURIComponent(location.hash.slice(1));
   if (!route && /^[A-Za-z0-9-]{4,12}$/.test(raw)) pendingJoin = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');   // link z zaproszeniem #KOD
-  if (r.exists) { account = normAccount(r.profile); if (route && route !== 'app') showSite(route); else startApp(); }
+  if (account) { if (route && route !== 'app') showSite(route); else startApp(); }
   else if (pendingJoin) showLanding();   // zaproszony gość od razu przechodzi do ustawienia profilu
   else showSite(route && route !== 'app' ? route : 'home');
 })();

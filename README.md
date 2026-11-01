@@ -17,7 +17,7 @@ Instalator pobiera jeden plik z najnowszego wydania do profilu użytkownika (`%L
 ## Jak to działa dla ludzi
 - **Admin** (jedyna osoba, która dotyka terminala) uruchamia LanChat. Na stronie głównej dostaje link do wysłania znajomym, np. `http://192.168.1.20:7777`.
 - **Pozostali** otwierają link w przeglądarce, ustawiają nick/zdjęcie/opis i piszą. Nic nie instalują.
-- Profil, lista pokoi (kolejność, wyciszenia) i ustawienia są zapisane **na serwerze admina**; na nowym urządzeniu wystarczy „Mam już konto” + kod konta. Pokoje (historia, ustawienia, obrazy) przetrwają restart.
+- Profil i ustawienia zapisujesz tak, jak wybierzesz (**Ustawienia → Dane i zapis**, bez kodów konta): **u admina**, **w przeglądarce** albo jako **kod base64** – szczegóły niżej.
 - Wiele pokoi naraz jak serwery na Discordzie: **+** tworzy/dołącza kodem, **🧭** pokazuje publiczne pokoje.
 
 ## Funkcje i QOL
@@ -26,6 +26,15 @@ Wygoda: **Ctrl+K** szybki przełącznik · **Alt+↑/↓** pokoje · **Ctrl+/** 
 
 ## GIF-y bez klucza
 Panel GIF ma 4 warstwy i nigdy nie jest pusty: **(1)** wbudowana paczka własnych animacji (działa offline), **(2)** reakcje z [nekos.best](https://nekos.best) (darmowe, bez klucza; anime), **(3)** Wikimedia Commons dla dowolnych haseł, **(4)** Giphy – tylko jeśli admin wpisze własny klucz. To nie jest biblioteka memów jak Giphy/Tenor: te serwisy wymagają kluczy (wspólne klucze demo są wyłączone). Można też wkleić link (również ze strony giphy.com) albo wysłać plik. GIF-y z zaufanych serwisów są kopiowane do pokoju.
+
+## Gdzie zapisują się Twoje dane (3 metody)
+| Metoda | Gdzie leży profil | Co widzi serwer | Powrót na innym urządzeniu |
+|---|---|---|---|
+| **U admina** (domyślna) | na dysku admina (`~/.lanchat/accounts.json`) | profil, **adres IP i rodzaj urządzenia** (system, przeglądarka, typ, ekran) w rejestrze admina | „Mam już konto” → serwer rozpoznaje Cię po IP → „To ja” |
+| **W tej przeglądarce** | tylko w `localStorage` przeglądarki | **adres IP i rodzaj urządzenia** (profilu nie przechowuje) | kod base64 |
+| **Kod base64** | nigdzie – wszystkie dane (profil, ustawienia, pokoje, tożsamość) są w jednym tekście, który trzymasz Ty | **nic nie zapisuje** (ani IP, ani urządzenia); admin nie widzi IP takiej osoby | wklej kod w „Mam już konto” |
+
+Użytkownik zmienia metodę w ustawieniach (dane są przenoszone, a przy przejściu na base64 serwer kasuje profil i wpis IP/urządzenie). W ustawieniach widać dokładnie, co serwer o Tobie zapisał. Admin widzi w panelu listę osób z IP i urządzeniami (poza trybem base64). Uwaga: rozpoznanie po IP to wygoda, nie zabezpieczenie – ktoś z tym samym IP mógłby kliknąć „To ja”; kod base64 zawiera Twoją tożsamość i hasła do pokoi, więc traktuj go jak hasło. Samo połączenie zawsze ujawnia IP serwerowi, ale w trybie base64 nie jest on zapisywany.
 
 ## Obecność i uprawnienia
 Rozłączenie nie wyrzuca z pokoju: osoba przechodzi w **AFK**, po 10 min w **Niedostępny**; „wyszedł” tylko po „Opuść pokój”. Poziomy: **admin** (ukryty – inni widzą zwykłego użytkownika) > **host** (twórca) > moderator > użytkownik; wyższy poziom może działać na niższych, także na osobach offline. Host i admin: nazwa, ikona, hasło, blokada dołączania, limit, publiczny/prywatny, tryb powolny, czyszczenie historii, lista banów.
