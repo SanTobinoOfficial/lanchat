@@ -383,12 +383,17 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 @media(max-width:820px){.mk-mem{display:none}.mock{height:360px}}
 @media(max-width:620px){.mk-side{display:none}.slinks{display:none}.sbrand{flex:1}.sin{gap:10px}.hstep{flex-direction:column;gap:12px}.hero{padding-top:56px}.sb{padding:12px 22px;font-size:16px}.sfoot a{margin:0 14px 0 0}}
 @media(max-width:1200px){#memBtn{display:grid}}
+#scrim{display:none;position:fixed;inset:0;z-index:28;background:rgba(0,0,0,.55)}
+@media(max-width:900px){   /* lista osób jako szuflada z przyciemnieniem – nie zabiera miejsca na tabletach i telefonach */
+  #members{position:fixed;right:0;top:0;bottom:0;z-index:30;width:min(280px,82vw);transform:translateX(100%);visibility:hidden;transition:transform .2s,visibility .2s;display:block;box-shadow:var(--shadow3)}
+  body.in-room.mem-open #members{transform:none;visibility:visible}
+  body.in-room.mem-open #scrim{display:block}
+}
 @media(max-width:768px){
   #menu,.menuB{display:grid}
   #left{position:fixed;z-index:30;top:0;bottom:0;left:0;transform:translateX(-100%);transition:transform .2s;box-shadow:var(--shadow3)}
   body.left-open #left{transform:none}
-  #members{position:fixed;right:0;top:0;bottom:0;z-index:30;transform:translateX(100%);transition:transform .2s;display:block;box-shadow:var(--shadow3)}
-  body.in-room.mem-open #members{transform:none}
+  body.left-open #scrim{display:block}
   .m{padding-right:16px}.m .tools{right:8px}
   #search,#dsearch{width:90px}#search:focus{width:130px}
   #box #send{display:grid}
@@ -400,6 +405,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 </style>
 </head>
 <body>
+<div id="scrim"></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="lcg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5865f2"/><stop offset="1" stop-color="#eb459e"/></linearGradient></defs>
 <symbol id="lc-logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="url(#lcg)"/><path d="M32 12c-10.5 0-19 7.2-19 16.3 0 4.8 2.4 9.1 6.3 12L17.5 51l9.2-4.8c1.7.4 3.5.6 5.3.6 10.5 0 19-7.3 19-16.3S42.5 12 32 12z" fill="#fff"/><path d="M23 32l9-8 9 8M23 32h18" stroke="#5865f2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><g fill="#5865f2"><circle cx="23" cy="32" r="3.5"/><circle cx="32" cy="24" r="3.5"/><circle cx="41" cy="32" r="3.5"/></g></symbol></svg>
 
@@ -612,9 +618,10 @@ let method = store.get('method', 'server');
 const newCid = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');
 let cid = method === 'base64' ? (ss.get('cid') || (() => { const c = newCid(); ss.set('cid', c); return c; })()) : (store.get('cid') || (() => { const c = newCid(); store.set('cid', c); return c; })());
 const accHeaders = () => ({ 'x-account': cid, 'x-device': JSON.stringify({ w: screen.width, h: screen.height }) });
-let soundOn = true, lastTypingSent = 0, winUnread = 0, replyTo = null, memOpen = store.get('mem', innerWidth > 1200);
+let soundOn = true, lastTypingSent = 0, winUnread = 0, replyTo = null, memOpen = store.get('mem', innerWidth > 1200), memOpenSmall = false;   // memOpen = kolumna na dużym ekranie (zapamiętana); memOpenSmall = szuflada na małym (zawsze startuje zamknięta)
 const connKey = (addr, code) => addr + '/' + code;
 const curSt = () => cur && cur.st;
+const memSmallQ = matchMedia('(max-width:900px)'), memWanted = () => memSmallQ.matches ? memOpenSmall : memOpen;
 const myRole = S => (S && S.you && (S.you.real || S.you.role)) || 'user';   // prawdziwa rola do uprawnień (admin jest ukryty na listach)
 
 /* ---------- theme / toast / avatar ---------- */
@@ -977,7 +984,8 @@ function onServer(C, m) {
 function setView(v) {
   view = v;
   $('#homeView').hidden = v !== 'home'; $('#discoverView').hidden = v !== 'discover'; $('#chatView').hidden = v !== 'chat';
-  document.body.classList.toggle('in-room', v === 'chat'); document.body.classList.toggle('mem-open', v === 'chat' && memOpen && !!cur && cur.state === 'online');
+  memOpenSmall = false;   // zmiana widoku/pokoju zawsze zamyka szufladę osób na małym ekranie
+  document.body.classList.toggle('in-room', v === 'chat'); document.body.classList.toggle('mem-open', v === 'chat' && memWanted() && !!cur && cur.state === 'online');
   document.body.classList.remove('left-open'); closePop(); closeAll();
   renderChan(); renderRail(); renderUserPanel(); updTitle();
 }
@@ -993,7 +1001,7 @@ function renderCurrent() {
   const C = cur; if (!C) return;
   const on = C.state === 'online' && C.st;
   $('#offline').hidden = !!on; $('#msgs').hidden = !on; $('#typing').hidden = !on; $('#composer').hidden = !on;
-  document.body.classList.toggle('mem-open', memOpen && !!on);
+  document.body.classList.toggle('mem-open', memWanted() && !!on);
   if (on) { renderChatFull(); if (!matchMedia('(pointer:coarse)').matches) $('#input').focus(); } else { $('#rName2').textContent = C.name; $('#rTopic').textContent = ''; $('#memberList').textContent = ''; renderOffline(); }
   renderChan(); renderUserPanel();
 }
@@ -1016,8 +1024,11 @@ $('#menu').onclick = () => document.body.classList.toggle('left-open');
   rail.addEventListener('mouseover', e => { const b = e.target.closest('[data-tip]'); if (!b) { tip.hidden = true; return; } tip.textContent = b.dataset.tip; tip.hidden = false; const r = b.getBoundingClientRect(); tip.style.left = (r.right + 14) + 'px'; tip.style.top = (r.top + r.height / 2) + 'px'; });
   rail.addEventListener('mouseleave', () => tip.hidden = true); rail.addEventListener('scroll', () => tip.hidden = true);
 }
-$('#memBtn').onclick = () => { memOpen = !memOpen; store.set('mem', memOpen); document.body.classList.toggle('mem-open', memOpen); };
-$('#main').addEventListener('click', e => { if (!e.target.closest('.menuB,#menu')) document.body.classList.remove('left-open'); }); // klik ☰ bąbelkuje do #main – nie zamykaj od razu
+const closeDrawers = () => { document.body.classList.remove('left-open'); if (memSmallQ.matches) { memOpenSmall = false; document.body.classList.remove('mem-open'); } };
+$('#memBtn').onclick = e => { e.stopPropagation(); if (memSmallQ.matches) memOpenSmall = !memOpenSmall; else { memOpen = !memOpen; store.set('mem', memOpen); } document.body.classList.toggle('mem-open', memWanted()); };
+$('#scrim').onclick = closeDrawers;
+memSmallQ.addEventListener('change', () => { memOpenSmall = false; document.body.classList.toggle('mem-open', view === 'chat' && memWanted() && !!cur && cur.state === 'online'); });
+$('#main').addEventListener('click', e => { if (!e.target.closest('.menuB,#menu,#memBtn')) closeDrawers(); }); // klik ☰ bąbelkuje do #main – nie zamykaj od razu
 
 function renderRail() {
   const box = $('#railRooms'); box.textContent = '';
@@ -1379,7 +1390,7 @@ input.addEventListener('keydown', e => {
   else if (e.key === 'Escape') { $('#replyX').click(); closePop(); }
   else if (e.key === 'ArrowUp' && !input.value && cur && cur.st) { const mine = [...cur.hist].reverse().find(x => x.uid === cur.st.you.id && x.kind === 'text'); if (mine) editMsg(mine.id); }
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('#lightbox')?.remove(); closeCtx(); closeModal(); closeAll(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('#lightbox')?.remove(); closeCtx(); closeModal(); closeAll(); closeDrawers(); } });
 $('#send').onclick = sendText;
 function sendText() {
   const t = input.value.trim(); if (!t || !cur) return;
