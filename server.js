@@ -921,6 +921,7 @@ function setAutostart(on) {
   return new Promise(res => {
     if (!autostartSupported()) return res(false);
     if (!on) return fs.unlink(STARTUP_LNK, () => res(true));
+    try { fs.mkdirSync(path.dirname(STARTUP_LNK), { recursive: true }); } catch {}   // świeży profil może nie mieć folderu Autostart
     const q = s => "'" + s.replace(/'/g, "''") + "'";
     const ps = `$s=(New-Object -ComObject WScript.Shell).CreateShortcut(${q(STARTUP_LNK)});$s.TargetPath=${q(process.execPath)};$s.Arguments='--no-open';$s.WorkingDirectory=${q(path.dirname(process.execPath))};$s.WindowStyle=7;$s.Save()`;
     execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true }, err => res(!err));
