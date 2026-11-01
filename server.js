@@ -43,7 +43,7 @@ function saveRoomsNow() {
   writeAtomic(ROOMS_FILE, JSON.stringify([...rooms.values()].map(r => ({
     code: r.code, name: r.name, password: r.password, isPublic: r.isPublic, hostKey: r.hostKey, created: r.created,
     history: r.history, bans: [...r.bans], muted: [...r.muted], mods: [...r.mods], stickers: r.stickers,
-    mediaBytes: r.mediaBytes, topic: r.topic, slow: r.slow, mediaTypes: r.mediaTypes, hashes: r.hashes, icon: r.icon || '', owner: r.owner || '',
+    mediaBytes: r.mediaBytes, topic: r.topic, slow: r.slow, mediaTypes: r.mediaTypes, hashes: r.hashes, icon: r.icon || '', owner: r.owner || '', cmds: r.cmds || {},
     members: [...r.members.values()], banNames: r.banNames, joinLock: !!r.joinLock, maxUsers: r.maxUsers || 0,
   }))));
 }
@@ -52,7 +52,7 @@ function loadRooms() {
   let list = []; try { list = JSON.parse(fs.readFileSync(ROOMS_FILE, 'utf8')); } catch {}
   for (const j of Array.isArray(list) ? list : []) {
     if (!j || !/^[A-Z0-9]{4,12}$/.test(j.code)) continue;
-    const r = Object.assign({ name: j.code, password: '', isPublic: false, created: Date.now(), history: [], stickers: [], mediaBytes: 0, topic: '', slow: 0, mediaTypes: {}, hashes: {}, banNames: {}, joinLock: false, maxUsers: 0 }, j,
+    const r = Object.assign({ name: j.code, password: '', isPublic: false, created: Date.now(), history: [], stickers: [], mediaBytes: 0, topic: '', slow: 0, mediaTypes: {}, hashes: {}, banNames: {}, joinLock: false, maxUsers: 0, cmds: {} }, j,
       { clients: new Map(), bans: new Set(j.bans), muted: new Set(j.muted), mods: new Set(j.mods), members: new Map((Array.isArray(j.members) ? j.members : []).filter(x => x && x.id).map(x => [x.id, Object.assign({ name: 'Gość', color: '#5b8def', bio: '', status: 'online', avatar: '', seen: 0, host: false, adm: false }, x)])) });
     rooms.set(r.code, r);
     for (const [id, type] of Object.entries(r.mediaTypes || {})) if (fs.existsSync(path.join(MEDIA_DIR, id))) media.set(id, { room: r.code, type });
@@ -91,6 +91,9 @@ const fails = new Map();    // ip -> { n, t, until } – po 5 błędnych próbac
 const LOCK_MS = +process.env.LANCHAT_LOCK_MS || 5 * 60 * 1000;
 const throttled = ip => { const f = fails.get(ip); return !!f && f.n >= 5 && Date.now() < f.until; };
 function failed(ip) { const f = fails.get(ip) || { n: 0, t: Date.now() }; if (Date.now() - f.t > 10 * 60000) { f.n = 0; f.t = Date.now(); } f.n++; tlog('ochrona', `błędne logowanie hasłem z ${ip} (próba ${f.n}/5)`, A.red); if (f.n >= 5) f.until = Date.now() + LOCK_MS; fails.set(ip, f); }
+const BUILTIN_CMDS = ['me', 'shrug', 'tableflip', 'unflip', 'lenny', 'roll', 'flip', '8ball', 'choose', 'topic', 'nick', 'gif', 'help', 'commands', 'komendy', 'console', 'konsola', 'afk', 'dnd', 'online', 'search', 'users', 'invite', 'code', 'theme', 'color', 'bio', 'leave', 'whoami', 'time', 'cmd',
+  'kick', 'mute', 'unmute', 'ban', 'unban', 'bans', 'mod', 'unmod', 'slow', 'lock', 'limit', 'public', 'password', 'rename', 'say', 'clear', 'close'];
+const CMD_NAME = /^[a-z0-9_-]{1,20}$/;
 function cleanAccount(b, old) {
   const o = Object.assign({}, old);
   if ('name' in b) o.name = clip(b.name, 24).trim() || old.name || 'Gość';
@@ -103,6 +106,7 @@ function cleanAccount(b, old) {
   if ('notify' in b) o.notify = !!b.notify;
   if ('fontScale' in b) o.fontScale = Math.max(85, Math.min(130, parseInt(b.fontScale, 10) || 100));
   if ('sound' in b) o.sound = !!b.sound;
+  if (Array.isArray(b.cmds)) { const seen = new Set(); o.cmds = b.cmds.slice(0, 40).map(c => ({ name: clip(c && c.name, 21).toLowerCase(), text: clip(c && c.text, 500) })).filter(c => CMD_NAME.test(c.name) && c.text.trim() && !BUILTIN_CMDS.includes(c.name) && !seen.has(c.name) && seen.add(c.name)).slice(0, 30); }   // własne komendy użytkownika
   if (Array.isArray(b.rooms)) o.rooms = b.rooms.slice(0, 50).map(r => ({
     addr: cleanAddr(r && r.addr), code: normCode(r && r.code), name: clip(r && r.name, 40), password: clip(r && r.password, 64),
     hostKey: /^[0-9a-f]{32}$/.test((r && r.hostKey) || '') ? r.hostKey : undefined, muted: !!(r && r.muted),
@@ -187,7 +191,7 @@ function createRoom({ name, password, isPublic, owner }) {
     code, name: clip(name, 40) || 'Pokój ' + code, password: clip(password, 64), isPublic: !!isPublic, owner: owner || '',
     hostKey: rid(16), created: Date.now(), clients: new Map(), history: [], bans: new Set(), banNames: {},
     muted: new Set(), mods: new Set(), members: new Map(), stickers: [], mediaBytes: 0, topic: '', slow: 0,
-    joinLock: false, maxUsers: 0, mediaTypes: {}, hashes: {},
+    joinLock: false, maxUsers: 0, mediaTypes: {}, hashes: {}, cmds: {},
   };
   rooms.set(code, r);
   tlog('pokój', `utworzono ${r.name} (${r.code})${r.isPublic ? ' publiczny' : ''}${r.password ? ' z hasłem' : ''}`, A.mag);
@@ -244,7 +248,7 @@ function sys(r, text) {
   broadcast(r, { t: 'msg', m });
   scheduleSave();
 }
-const roomInfo = r => ({ code: r.code, name: r.name, topic: r.topic, slow: r.slow, locked: !!r.password, stickers: r.stickers, icon: r.icon || '', joinLock: !!r.joinLock, maxUsers: r.maxUsers || 0, isPublic: !!r.isPublic });
+const roomInfo = r => ({ code: r.code, name: r.name, topic: r.topic, slow: r.slow, locked: !!r.password, stickers: r.stickers, icon: r.icon || '', joinLock: !!r.joinLock, maxUsers: r.maxUsers || 0, isPublic: !!r.isPublic, cmds: r.cmds || {} });
 const notice = (c, text) => wsSend(c.sock, JSON.stringify({ t: 'notice', text }));
 // rozsyłaj zmiany obecności (AFK → Niedostępny) bez udziału klientów
 setInterval(() => { for (const r of rooms.values()) { const sig = [...r.members.values()].map(m => m.id + presenceOf(r, m)).join(); if (sig !== r._sig && r.clients.size) sendUsers(r); } }, Math.min(20000, Math.max(300, AFK_MS / 3))).unref();
@@ -452,6 +456,12 @@ function handleMsg(c, m) {
       if (m.act === 'limit') { r.maxUsers = Math.max(0, Math.min(500, parseInt(m.value, 10) || 0)); return upd(); }
       if (m.act === 'public') { r.isPublic = !!m.value; return upd(); }
       if (m.act === 'clear') { r.history = []; broadcast(r, { t: 'cleared' }); return sys(r, 'Historia czatu została wyczyszczona'); }
+      if (m.act === 'cmdset') {   // własna komenda pokoju: /nazwa rozwija się u każdego w treść (kliencko)
+        const n = clip(m.name, 21).toLowerCase(), t = clip(m.value, 400).trim(); r.cmds = r.cmds || {};
+        if (CMD_NAME.test(n) && t && !BUILTIN_CMDS.includes(n) && (n in r.cmds || Object.keys(r.cmds).length < 25)) { r.cmds[n] = t; upd(); }
+        return;
+      }
+      if (m.act === 'cmddel') { if (r.cmds) delete r.cmds[clip(m.name, 21).toLowerCase()]; return upd(); }
       if (m.act === 'bans' || m.act === 'unban') {
         if (m.act === 'unban') { const k = clip(m.uid, 16); r.bans.delete(k); delete r.banNames[k]; }
         return wsSend(c.sock, JSON.stringify({ t: 'bans', list: [...r.bans].map(id => ({ id, name: r.banNames[id] || 'Użytkownik ' + id })) }));
@@ -470,9 +480,9 @@ function handleMsg(c, m) {
 
 // ---------- konsola pokoju (host / moderator): komendy tylko dla własnego pokoju – bez IP, bez ustawień serwera ----------
 // Uprawnienia są sprawdzane tak samo jak przy przyciskach w aplikacji (te same handlery), a poziomy wyższe zawsze wygrywają.
-const RC = { help: 0, info: 0, code: 0, users: 0, members: 0, history: 0, kick: 1, mute: 1, unmute: 1, topic: 1, say: 1,
+const RC = { cmd: 1, help: 0, info: 0, code: 0, users: 0, members: 0, history: 0, kick: 1, mute: 1, unmute: 1, topic: 1, say: 1,
   ban: 2, unban: 2, bans: 2, mod: 2, unmod: 2, rename: 2, slow: 2, lock: 2, limit: 2, public: 2, password: 2, clear: 2, close: 2 };
-const RC_HELP = { help: 'lista komend', info: 'informacje o pokoju', code: 'kod i adres do zaproszenia', users: 'kto jest teraz online', members: 'wszyscy członkowie (też AFK)', history: 'history [ile] – ostatnie wiadomości',
+const RC_HELP = { cmd: 'cmd list | add <nazwa> <tekst> | del <nazwa> – własne komendy pokoju', help: 'lista komend', info: 'informacje o pokoju', code: 'kod i adres do zaproszenia', users: 'kto jest teraz online', members: 'wszyscy członkowie (też AFK)', history: 'history [ile] – ostatnie wiadomości',
   kick: 'kick <osoba> – wyrzuć', mute: 'mute <osoba> – wycisz', unmute: 'unmute <osoba> – zdejmij wyciszenie', topic: 'topic <tekst> – temat pokoju', say: 'say <tekst> – ogłoszenie w pokoju',
   ban: 'ban <osoba> – zbanuj', unban: 'unban <osoba|id> – odbanuj', bans: 'lista banów', mod: 'mod <osoba> – nadaj moderatora', unmod: 'unmod <osoba> – odbierz moderatora', rename: 'rename <nazwa> – zmień nazwę',
   slow: 'slow <sekundy> – tryb powolny (0 = wył.)', lock: 'lock on|off – blokada dołączania', limit: 'limit <liczba> – limit osób (0 = brak)', public: 'public on|off – widoczność w „Odkrywaj”',
@@ -512,6 +522,22 @@ function consoleRun(c, line) {
     case 'lock': room('lock', a[0] !== 'off'); ok('Blokada dołączania: ' + (a[0] !== 'off' ? 'włączona' : 'wyłączona')); break;
     case 'public': room('public', a[0] !== 'off'); ok('Pokój publiczny: ' + (a[0] !== 'off' ? 'tak' : 'nie')); break;
     case 'password': room('password', !a[0] || a[0] === 'none' ? '' : a[0]); ok(!a[0] || a[0] === 'none' ? 'Hasło usunięte' : 'Hasło ustawione'); break;
+    case 'cmd': {
+      const sub = String(a[0] || 'list').toLowerCase(), cm = r.cmds || {};
+      if (sub === 'list') { const k = Object.keys(cm); if (!k.length) ln('(brak własnych komend pokoju – dodaj: cmd add zasady Szanujemy się nawzajem)'); k.forEach(n => ln('/' + n.padEnd(14) + cm[n])); break; }
+      if (L < 2) { er('Dodawanie i usuwanie komend wymaga roli hosta.'); break; }
+      const n = String(a[1] || '').toLowerCase().replace(/^\//, '');
+      if (sub === 'add') {
+        const t = clip(raw(2), 400).trim();
+        if (!CMD_NAME.test(n)) { er('Nazwa: 1–20 znaków (małe litery, cyfry, - i _), np. cmd add zasady Szanujemy się'); break; }
+        if (BUILTIN_CMDS.includes(n)) { er('„/' + n + '” to komenda wbudowana – wybierz inną nazwę'); break; }
+        if (!t) { er('Podaj treść komendy. Można użyć {args}, {me}, {room}, {time}.'); break; }
+        if (!(n in cm) && Object.keys(cm).length >= 25) { er('Limit 25 komend pokoju'); break; }
+        handle(c, { t: 'room', act: 'cmdset', name: n, value: t }); ok('Dodano /' + n); break;
+      }
+      if (sub === 'del') { if (!(n in cm)) { er('Nie ma takiej komendy pokoju'); break; } handle(c, { t: 'room', act: 'cmddel', name: n }); ok('Usunięto /' + n); break; }
+      er('Użycie: cmd list | cmd add <nazwa> <tekst> | cmd del <nazwa>'); break;
+    }
     case 'clear': ask('Wyczyścić całą historię czatu?', () => { room('clear'); ok('Historia wyczyszczona'); }); break;
     case 'close': ask('Zamknąć pokój „' + r.name + '” na stałe?', () => { room('close'); }); break;
   }

@@ -46,6 +46,12 @@ Rozłączenie nie wyrzuca z pokoju: osoba przechodzi w **AFK**, po 10 min w **Ni
 ## Konsola admina (terminal)
 Okno, w którym działa LanChat, jest konsolą admina (TUI) – lokalną, bez udziału strony WWW. Wpisz `help`; **Tab** uzupełnia komendy, kody pokoi i nazwy osób, **↑/↓** wybierają podpowiedź lub historię, **PgUp/PgDn** przewijają dziennik. Przykłady: `rooms`, `users`, `kick KOD ala`, `say all Restart za 5 minut`, `banip 192.168.1.20`, `set maxRooms 50`, `chat off` (ukrywa treść wiadomości w dzienniku). `--no-tui` wyłącza konsolę (zwykłe logi).
 
+## Komendy w czacie i własne komendy
+Wpisz **/** w polu wiadomości: pojawią się podpowiedzi (**/help** pokazuje wszystko z opisami). Są komendy zabawowe (`/roll 2d6`, `/flip`, `/8ball`, `/choose a | b`), profilu (`/nick`, `/bio`, `/color`, `/theme`, `/afk`), pokoju (`/search`, `/invite`, `/code`, `/users`) i moderacji (`/kick`, `/mute`, `/slow`… – dla moderatorów i hosta). **Własne komendy:** Ustawienia → Moje komendy, np. `gg` → „Dobra gra, {args}! – {me}”; host dodaje komendy pokoju: `/cmd add zasady Szanujemy się`. Aby wysłać tekst zaczynający się od „/”, wpisz „//”.
+
+## Próba instalacji w czystym Windows (bez admina)
+`toolssandboxStart-InstallTest.ps1` otwiera Windows Sandbox z kontem standardowym i gotową komendą (tryb `-Local` bez internetu) – patrz tools/sandbox/README.md.
+
 ## Zapora Windows (ważne)
 Aplikacja nie dotyka zapory. Komputer, na którym działa LanChat, musi przyjmować połączenia przychodzące (TCP 7777, UDP 7778) – przy pierwszym uruchomieniu Windows może pokazać okno „Zezwól na dostęp”. Bez praw administratora nie da się go zatwierdzić; wtedy użyj komputera, na którym to możliwe. Goście łączą się wychodząco i niczego nie potrzebują.
 
