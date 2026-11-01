@@ -10,7 +10,9 @@ $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $repo = (Resolve-Path (Join-Path $here '..\..')).Path
 if (-not (Get-Command WindowsSandbox.exe -ErrorAction SilentlyContinue)) { throw 'Brak Windows Sandbox. Wlacz funkcje "Windows Sandbox" (Containers-DisposableClientVM) i zrestartuj komputer.' }
-if (Get-Process WindowsSandbox* -ErrorAction SilentlyContinue) { throw 'Windows Sandbox jest juz uruchomiony - zamknij go i sprobuj ponownie (dziala tylko jedna instancja).' }
+$wsbCli = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\wsb.exe'   # wsb list: pewniejsze niz szukanie procesow (po zamknieciu zostaja pomocnicze)
+$running = if (Test-Path $wsbCli) { ((& $wsbCli list 2>&1 | Out-String) -match '[0-9a-f]{8}-') } else { [bool](Get-Process WindowsSandboxClient -ErrorAction SilentlyContinue) }
+if ($running) { throw 'Windows Sandbox jest juz uruchomiony - zamknij go i sprobuj ponownie (dziala tylko jedna instancja).' }
 if ($Local -and -not (Test-Path (Join-Path $repo 'dist\lanchat-win-x64.exe'))) { throw 'Brak dist\lanchat-win-x64.exe - zbuduj najpierw: node build.js' }
 
 $mode = if ($Local) { 'local' } else { 'real' }
