@@ -24,6 +24,12 @@ Instalator pobiera jeden plik z najnowszego wydania do profilu użytkownika (`%L
 Emotki, naklejki, GIF-y, obrazy (wklej/przeciągnij), linki z podglądem, `**pogrubienie**`, `*kursywa*`, `` `kod` ``, bloki kodu, cytaty `>`, `||spoiler||`, odpowiedzi, reakcje, edycja, usuwanie, wzmianki `@osoba` (wyróżnione), lista aktywnych osób, role Admin/Host/Moderator, wyciszanie, bany, tryb powolny, hasło do pokoju, własna ikona pokoju.
 Wygoda: **Ctrl+K** szybki przełącznik · **Alt+↑/↓** pokoje · **Ctrl+/** ściąga skrótów · podpowiedzi `@` `:` `/` · linia „NOWE” i przycisk „Przejdź do najnowszych” · separatory dat · menu pod prawym przyciskiem (wiadomości, ikony pokoi) · przeciąganie ikon pokoi · wyciszanie pokoi · szkice wiadomości przetrwają przeładowanie · pisanie bez klikania w pole · przycisk „Zaproś” · auto-idle po 5 min · widok kompaktowy i rozmiar tekstu · powiadomienia pulpitu (localhost/https) · kropka nieprzeczytanych na favikonie · autostart z Windows (panel admina, bez UAC).
 
+## GIF-y bez klucza
+Panel GIF ma 4 warstwy i nigdy nie jest pusty: **(1)** wbudowana paczka własnych animacji (działa offline), **(2)** reakcje z [nekos.best](https://nekos.best) (darmowe, bez klucza; anime), **(3)** Wikimedia Commons dla dowolnych haseł, **(4)** Giphy – tylko jeśli admin wpisze własny klucz. To nie jest biblioteka memów jak Giphy/Tenor: te serwisy wymagają kluczy (wspólne klucze demo są wyłączone). Można też wkleić link (również ze strony giphy.com) albo wysłać plik. GIF-y z zaufanych serwisów są kopiowane do pokoju.
+
+## Obecność i uprawnienia
+Rozłączenie nie wyrzuca z pokoju: osoba przechodzi w **AFK**, po 10 min w **Niedostępny**; „wyszedł” tylko po „Opuść pokój”. Poziomy: **admin** (ukryty – inni widzą zwykłego użytkownika) > **host** (twórca) > moderator > użytkownik; wyższy poziom może działać na niższych, także na osobach offline. Host i admin: nazwa, ikona, hasło, blokada dołączania, limit, publiczny/prywatny, tryb powolny, czyszczenie historii, lista banów.
+
 ## Uruchomienie z kodu
 `node server.js` (Node ≥ 22) → `http://localhost:7777`. Plik wykonywalny: `node build.js` (wynik w `dist/`). Testy: `node test.js`.
 

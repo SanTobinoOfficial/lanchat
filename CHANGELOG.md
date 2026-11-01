@@ -1,5 +1,11 @@
 # Zmiany
 
+## 0.3.0
+- **GIF-y zawsze działają, bez klucza.** Wbudowana paczka 15 własnych animacji (generowana programowo, działa też bez internetu), reakcje z nekos.best, wyszukiwanie dowolnych haseł przez Wikimedia Commons; Giphy tylko opcjonalnie (jeśli admin ma własny klucz). Kategorie po polsku, „ostatnio używane”, linki giphy.com / imgur .gifv zamieniane na prawdziwy GIF. GIF-y z zaufanych serwisów są pobierane do pokoju, więc historia nie zależy od internetu.
+- **Obecność zamiast „wychodzenia”.** Rozłączenie nie usuwa nikogo z pokoju: najpierw „AFK”, po 10 minutach „Niedostępny”. „Wyszedł” oznacza tylko świadome „Opuść pokój”. Członkostwo i profile osób przetrwają restart.
+- **Admin incognito.** Dla innych admin wygląda jak zwykły użytkownik (bez znacznika, nie ma go na listach jako admin). Poziomy: admin > host > moderator > użytkownik; odmowy są jednakowe, więc nie zdradzają ukrytego admina.
+- **Więcej mocy hosta i admina:** nazwa pokoju, blokada dołączania, limit osób, pokój publiczny/prywatny, czyszczenie historii, lista banów i odbanowanie, ban/wyciszenie osób rozłączonych, brak limitu flood dla hosta.
+
 ## 0.2.0
 - Nowe logo (dymek czatu z mini-siecią) w pasku, na stronie startowej, w onboardingu i jako favikona (z czerwoną kropką przy nieprzeczytanych).
 - Strona startowa (landing) z własną nawigacją, podstrona „Hostuj własny”, onboarding z profilem.

@@ -7,7 +7,7 @@ const { spawn, execFile } = require('child_process');
 let sea = null;
 try { const s = require('node:sea'); if (s.isSea()) sea = s; } catch {}
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const DISC_PORT = 7778;
 const DATA = path.join(os.homedir(), '.lanchat');
 fs.mkdirSync(DATA, { recursive: true });
@@ -42,6 +42,7 @@ function saveRoomsNow() {
     code: r.code, name: r.name, password: r.password, isPublic: r.isPublic, hostKey: r.hostKey, created: r.created,
     history: r.history, bans: [...r.bans], muted: [...r.muted], mods: [...r.mods], stickers: r.stickers,
     mediaBytes: r.mediaBytes, topic: r.topic, slow: r.slow, mediaTypes: r.mediaTypes, hashes: r.hashes, icon: r.icon || '',
+    members: [...r.members.values()], banNames: r.banNames, joinLock: !!r.joinLock, maxUsers: r.maxUsers || 0,
   }))));
 }
 function scheduleSave() { if (!roomsTimer) roomsTimer = setTimeout(saveRoomsNow, 500); }
@@ -49,8 +50,8 @@ function loadRooms() {
   let list = []; try { list = JSON.parse(fs.readFileSync(ROOMS_FILE, 'utf8')); } catch {}
   for (const j of Array.isArray(list) ? list : []) {
     if (!j || !/^[A-Z0-9]{4,12}$/.test(j.code)) continue;
-    const r = Object.assign({ name: j.code, password: '', isPublic: false, created: Date.now(), history: [], stickers: [], mediaBytes: 0, topic: '', slow: 0, mediaTypes: {}, hashes: {} }, j,
-      { clients: new Map(), bans: new Set(j.bans), muted: new Set(j.muted), mods: new Set(j.mods) });
+    const r = Object.assign({ name: j.code, password: '', isPublic: false, created: Date.now(), history: [], stickers: [], mediaBytes: 0, topic: '', slow: 0, mediaTypes: {}, hashes: {}, banNames: {}, joinLock: false, maxUsers: 0 }, j,
+      { clients: new Map(), bans: new Set(j.bans), muted: new Set(j.muted), mods: new Set(j.mods), members: new Map((Array.isArray(j.members) ? j.members : []).filter(x => x && x.id).map(x => [x.id, Object.assign({ name: 'Gość', color: '#5b8def', bio: '', status: 'online', avatar: '', seen: 0, host: false, adm: false }, x)])) });
     rooms.set(r.code, r);
     for (const [id, type] of Object.entries(r.mediaTypes || {})) if (fs.existsSync(path.join(MEDIA_DIR, id))) media.set(id, { room: r.code, type });
   }
@@ -144,12 +145,16 @@ function attachWs(sock, onMsg, onClose) {
 }
 
 // ---------- rooms ----------
+// Poziomy uprawnień: admin (ukryty, incognito) > host (twórca) > moderator > użytkownik.
+const LVL = { user: 0, mod: 1, host: 2, admin: 3 };
+const AFK_MS = +process.env.LANCHAT_AFK_MS || 10 * 60 * 1000;   // po rozłączeniu najpierw „AFK”, po 10 minutach „Niedostępny” (członkostwo zostaje!)
 function createRoom({ name, password, isPublic }) {
   const code = newCode();
   const r = {
     code, name: clip(name, 40) || 'Pokój ' + code, password: clip(password, 64), isPublic: !!isPublic,
-    hostKey: rid(16), created: Date.now(), clients: new Map(), history: [], bans: new Set(),
-    muted: new Set(), mods: new Set(), stickers: [], mediaBytes: 0, topic: '', slow: 0, mediaTypes: {}, hashes: {},
+    hostKey: rid(16), created: Date.now(), clients: new Map(), history: [], bans: new Set(), banNames: {},
+    muted: new Set(), mods: new Set(), members: new Map(), stickers: [], mediaBytes: 0, topic: '', slow: 0,
+    joinLock: false, maxUsers: 0, mediaTypes: {}, hashes: {},
   };
   rooms.set(code, r);
   scheduleSave();
@@ -162,22 +167,51 @@ function closeRoom(r, reason) {
   for (const [id, m] of media) if (m.room === r.code) { media.delete(id); fs.unlink(path.join(MEDIA_DIR, id), () => {}); }
   scheduleSave();
 }
-const roleOf = (r, c) => c.isAdmin ? 'admin' : c.isHost ? 'host' : r.mods.has(c.id) ? 'mod' : 'user';
-const canMod = (r, c) => ['admin', 'host', 'mod'].includes(roleOf(r, c));
-const canHost = (r, c) => c.isAdmin || c.isHost;
-const publicUser = (r, c) => ({ id: c.id, name: c.name, color: c.color, role: roleOf(r, c), muted: r.muted.has(c.id), avatar: c.avatar, bio: c.bio, status: c.status });
+// prawdziwa rola (do sprawdzania uprawnień)
+function realRole(r, id) {
+  const c = r.clients.get(id), m = r.members.get(id);
+  if ((c && c.isAdmin) || (m && m.adm)) return 'admin';
+  if ((c && c.isHost) || (m && m.host)) return 'host';
+  return r.mods.has(id) ? 'mod' : 'user';
+}
+const lvl = (r, id) => LVL[realRole(r, id)];
+const canMod = (r, c) => lvl(r, c.id) >= 1;
+const canHost = (r, c) => lvl(r, c.id) >= 2;
+// rola widoczna dla innych: admin jest incognito (zwykły użytkownik), chyba że jest też twórcą pokoju; sam admin widzi prawdę
+function shownRole(r, id, viewerIsAdmin) {
+  const rr = realRole(r, id); if (rr !== 'admin' || viewerIsAdmin) return rr;
+  const c = r.clients.get(id), m = r.members.get(id);
+  return (c && c.isHost) || (m && m.host) ? 'host' : r.mods.has(id) ? 'mod' : 'user';
+}
+// obecność: połączony → jego status; rozłączony → AFK, a potem Niedostępny
+function presenceOf(r, mem) { const c = r.clients.get(mem.id); return c ? c.status : (Date.now() - mem.seen < AFK_MS ? 'afk' : 'offline'); }
+function syncMember(r, c) {
+  const mem = r.members.get(c.id); if (!mem) return;
+  Object.assign(mem, { name: c.name, color: c.color, bio: c.bio, status: c.status, avatar: c.avatar, seen: Date.now() });
+}
+const memberView = (r, mem, viewerIsAdmin) => ({
+  id: mem.id, name: mem.name, color: mem.color, role: shownRole(r, mem.id, viewerIsAdmin), muted: r.muted.has(mem.id),
+  avatar: mem.avatar, bio: mem.bio, status: presenceOf(r, mem), online: r.clients.has(mem.id),
+});
+const usersFor = (r, viewer) => [...r.members.values()].map(m => memberView(r, m, viewer.isAdmin));
 function broadcast(r, obj, except) {
   const s = JSON.stringify(obj);
   for (const c of r.clients.values()) if (c !== except) wsSend(c.sock, s);
 }
-const sendUsers = r => broadcast(r, { t: 'users', users: [...r.clients.values()].map(c => publicUser(r, c)) });
+function sendUsers(r) {
+  r._sig = [...r.members.values()].map(m => m.id + presenceOf(r, m)).join();
+  for (const c of r.clients.values()) wsSend(c.sock, JSON.stringify({ t: 'users', users: usersFor(r, c) }));
+}
 function sys(r, text) {
   const m = { id: rid(6), kind: 'sys', text, ts: Date.now() };
   r.history.push(m); if (r.history.length > 500) r.history.shift();
   broadcast(r, { t: 'msg', m });
   scheduleSave();
 }
-const roomInfo = r => ({ code: r.code, name: r.name, topic: r.topic, slow: r.slow, locked: !!r.password, stickers: r.stickers, icon: r.icon || '' });
+const roomInfo = r => ({ code: r.code, name: r.name, topic: r.topic, slow: r.slow, locked: !!r.password, stickers: r.stickers, icon: r.icon || '', joinLock: !!r.joinLock, maxUsers: r.maxUsers || 0, isPublic: !!r.isPublic });
+const notice = (c, text) => wsSend(c.sock, JSON.stringify({ t: 'notice', text }));
+// rozsyłaj zmiany obecności (AFK → Niedostępny) bez udziału klientów
+setInterval(() => { for (const r of rooms.values()) { const sig = [...r.members.values()].map(m => m.id + presenceOf(r, m)).join(); if (sig !== r._sig && r.clients.size) sendUsers(r); } }, Math.min(20000, Math.max(300, AFK_MS / 3))).unref();
 
 function onJoin(sock, ip, m) {
   const err = code => { wsSend(sock, JSON.stringify({ t: 'error', code })); sock.end(); };
@@ -189,48 +223,88 @@ function onJoin(sock, ip, m) {
   const isHost = !!m.hostKey && safeEq(m.hostKey, r.hostKey);
   if (!isAdmin && (r.bans.has(id) || settings.bannedIps.includes(cleanIp(ip)))) return err('banned');
   if (!isAdmin && !isHost && r.password && !safeEq(m.password || '', r.password)) return err('password');
+  const mem = r.members.get(id);
+  if (!mem && !isAdmin && !isHost && r.joinLock) return err('locked');          // blokada dołączania: wracają tylko dotychczasowi członkowie
   const old = r.clients.get(id);
-  if (!old && r.clients.size >= settings.maxUsersPerRoom && !isAdmin) return err('full');
+  const cap = Math.min(settings.maxUsersPerRoom, r.maxUsers || Infinity);
+  if (!old && r.clients.size >= cap && !isAdmin && !isHost) return err('full');
+  if (!mem && r.members.size >= 500) return err('full');
   if (old) { wsSend(old.sock, JSON.stringify({ t: 'closed', reason: 'Połączono z innej karty' })); try { old.sock.end(); } catch {} }
   const c = {
     id, cid, sock, ip: cleanIp(ip), room: r, isAdmin, isHost, joined: Date.now(),
     name: clip(m.name, 24).trim() || 'Gość', color: /^#[0-9a-f]{6}$/i.test(m.color) ? m.color : '#5b8def',
-    uploadKey: rid(16), stamps: [], lastMsg: 0, avatar: '', bio: clip(m.bio, 190),
+    uploadKey: rid(16), stamps: [], lastMsg: 0, avatar: mem ? mem.avatar : '', bio: clip(m.bio, 190),
     status: ['online', 'idle', 'dnd'].includes(m.status) ? m.status : 'online',
   };
   uploadKeys.set(c.uploadKey, c);
   r.clients.set(id, c);
   sock.client = c;
+  r.members.set(id, Object.assign(mem || { id, joined: Date.now(), host: false, adm: false }, { host: !!(mem && mem.host) || isHost, adm: !!(mem && mem.adm) || isAdmin }));
+  syncMember(r, c);
   wsSend(sock, JSON.stringify({
-    t: 'joined', you: publicUser(r, c), uploadKey: c.uploadKey, room: roomInfo(r),
-    users: [...r.clients.values()].map(x => publicUser(r, x)), history: r.history,
+    t: 'joined', you: memberView(r, r.members.get(id), isAdmin), uploadKey: c.uploadKey, room: roomInfo(r),
+    users: usersFor(r, c), history: r.history,
   }));
   sendUsers(r);
-  if (!old) sys(r, `${c.name} dołączył(a)`);
+  if (!mem) sys(r, `${c.name} dołączył(a)`);   // ogłaszamy tylko nowych członków – powrót po rozłączeniu nie jest „dołączeniem”
 }
-function onLeave(c) {
+function onLeave(c) {   // rozłączenie ≠ opuszczenie pokoju: członek zostaje, zmienia się tylko obecność
   const r = c.room;
   uploadKeys.delete(c.uploadKey);
   if (r.clients.get(c.id) === c) {
     r.clients.delete(c.id);
+    const mem = r.members.get(c.id); if (mem) { syncMember(r, c); mem.seen = Date.now(); }
     sendUsers(r);
-    sys(r, `${c.name} wyszedł(-ła)`);
+    scheduleSave();
   }
 }
 
+const GIF_HOSTS = /^https:\/\/(nekos\.best|media\d*\.giphy\.com|i\.giphy\.com|upload\.wikimedia\.org|media\.tenor\.com|i\.imgur\.com)\//i;
+const hostOk = u => GIF_HOSTS.test(u);
 function validUrl(r, u) {
   u = clip(u, 600);
   if (/^\/media\/[0-9a-f]{32}$/.test(u)) { const m = media.get(u.slice(7)); return m && m.room === r.code ? u : null; }
+  if (/^\/gifpack\/[a-z0-9-]{1,30}\.gif$/.test(u)) return gifPackHas(u.slice(9, -4)) ? u : null;
   return /^https?:\/\/[^\s<>"']{4,}$/i.test(u) ? u : null;
+}
+// zapis pliku w mediach pokoju (z deduplikacją po sumie kontrolnej)
+async function storeMedia(r, buf, type) {
+  const hash = crypto.createHash('sha1').update(buf).digest('hex');
+  let id = r.hashes[hash];
+  if (!id || !media.has(id)) {
+    id = rid(16);
+    await fs.promises.writeFile(path.join(MEDIA_DIR, id), buf);
+    media.set(id, { room: r.code, type }); r.mediaTypes[id] = type; r.hashes[hash] = id; r.mediaBytes += buf.length;
+    scheduleSave();
+  }
+  return id;
+}
+// pobranie GIF-a z zaufanego serwisu na serwer pokoju (każdy klient czyta go potem od hosta, a historia nie zależy od internetu)
+async function importRemote(r, url) {
+  try {
+    let u = url;
+    for (let hop = 0; hop < 3; hop++) {
+      if (!hostOk(u)) return null;
+      const res = await fetch(u, { redirect: 'manual', signal: AbortSignal.timeout(9000) });
+      if (res.status >= 300 && res.status < 400 && res.headers.get('location')) { u = new URL(res.headers.get('location'), u).href; continue; }
+      if (!res.ok) return null;
+      const limit = Math.min(settings.uploadLimitMB, 12) * 1048576;
+      if ((+res.headers.get('content-length') || 0) > limit) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      const type = buf.length <= limit && sniff(buf);
+      if (!type || r.mediaBytes + buf.length > 150 * 1048576) return null;
+      return '/media/' + await storeMedia(r, buf, type);
+    }
+  } catch {}
+  return null;
 }
 function post(c, m) {
   const r = c.room, now = Date.now();
-  if (r.muted.has(c.id)) return wsSend(c.sock, JSON.stringify({ t: 'notice', text: 'Jesteś wyciszony(-a).' }));
+  if (r.muted.has(c.id)) return notice(c, 'Jesteś wyciszony(-a).');
   c.stamps = c.stamps.filter(t => now - t < 5000);
-  if (c.stamps.length >= 8) return wsSend(c.sock, JSON.stringify({ t: 'notice', text: 'Zwolnij – za dużo wiadomości.' }));
-  if (r.slow && !canMod(r, c) && now - c.lastMsg < r.slow * 1000)
-    return wsSend(c.sock, JSON.stringify({ t: 'notice', text: `Tryb powolny: ${r.slow}s między wiadomościami.` }));
-  const msg = { id: rid(6), uid: c.id, name: c.name, color: c.color, avatar: c.avatar, role: roleOf(r, c), ts: now, kind: m.t === 'msg' ? 'text' : m.t };
+  if (c.stamps.length >= 8 && lvl(r, c.id) < 2) return notice(c, 'Zwolnij – za dużo wiadomości.');
+  if (r.slow && !canMod(r, c) && now - c.lastMsg < r.slow * 1000) return notice(c, `Tryb powolny: ${r.slow}s między wiadomościami.`);
+  const msg = { id: rid(6), uid: c.id, name: c.name, color: c.color, avatar: c.avatar, role: shownRole(r, c.id, false), ts: now, kind: m.t === 'msg' ? 'text' : m.t };
   if (m.t === 'msg') {
     msg.text = clip(m.text, 4000).trim(); if (!msg.text) return;
     if (m.me) msg.me = true;
@@ -255,7 +329,16 @@ function handle(c, m) { handleMsg(c, m); if (m.t !== 'typing') scheduleSave(); }
 function handleMsg(c, m) {
   const r = c.room;
   switch (m.t) {
-    case 'msg': case 'gif': case 'img': case 'sticker': return post(c, m);
+    case 'gif': {
+      const u = clip(m.url, 600);
+      if (hostOk(u) && !c.importing) {   // GIF z zaufanego serwisu: pobierz do pokoju, potem wyślij już lokalny adres
+        c.importing = true;
+        importRemote(r, u).then(local => { c.importing = false; if (!c.sock.destroyed && r.clients.get(c.id) === c) { post(c, Object.assign({}, m, { url: local || u })); scheduleSave(); } });
+        return;
+      }
+      return post(c, m);
+    }
+    case 'msg': case 'img': case 'sticker': return post(c, m);
     case 'typing': return broadcast(r, { t: 'typing', uid: c.id, name: c.name }, c);
     case 'profile': {
       if ('name' in m) c.name = clip(m.name, 24).trim() || c.name;
@@ -266,7 +349,14 @@ function handleMsg(c, m) {
         const u = clip(m.avatar, 100), med = /^\/media\/[0-9a-f]{32}$/.test(u) && media.get(u.slice(7));
         if (u === '') c.avatar = ''; else if (med && med.room === r.code) c.avatar = u;
       }
+      syncMember(r, c);
       return sendUsers(r);
+    }
+    case 'leave': {   // świadome opuszczenie pokoju – dopiero to jest „wyjściem”
+      r.members.delete(c.id); r.mods.delete(c.id);
+      sys(r, `${c.name} opuścił(a) pokój`);
+      try { c.sock.end(); } catch {}
+      return;
     }
     case 'react': {
       const msg = r.history.find(x => x.id === m.mid); const e = clip(m.emoji, 16);
@@ -290,39 +380,197 @@ function handleMsg(c, m) {
       r.history.splice(i, 1);
       return broadcast(r, { t: 'del', mid: msg.id });
     }
-    case 'mod': { // kick | ban | mute | unmute | promote | demote
+    case 'mod': { // kick | ban | mute | unmute | promote | demote – działa też na osobach rozłączonych (AFK / niedostępnych)
       if (!canMod(r, c)) return;
-      const t = r.clients.get(m.uid); if (!t || t === c) return;
-      const tr = roleOf(r, t);
-      if (tr === 'admin' || tr === 'host') return;
-      if (tr === 'mod' && !canHost(r, c)) return;
+      const tm = r.members.get(m.uid), t = r.clients.get(m.uid);
+      // wyższy poziom wygrywa; odmowa jest zawsze taka sama, żeby nie zdradzić ukrytego admina
+      if (!tm || m.uid === c.id || lvl(r, c.id) <= lvl(r, m.uid)) return notice(c, 'Nie można wykonać tej akcji.');
+      const by = shownRole(r, c.id, false) === 'user' ? 'moderatora' : c.name;   // incognito: bez nazwiska ukrytego admina
       if (m.act === 'kick' || m.act === 'ban') {
-        if (m.act === 'ban') r.bans.add(t.id);
-        wsSend(t.sock, JSON.stringify({ t: 'closed', reason: m.act === 'ban' ? 'Zostałeś(-aś) zbanowany(-a)' : 'Zostałeś(-aś) wyrzucony(-a)' }));
-        try { t.sock.end(); } catch {}
-        return sys(r, `${t.name} ${m.act === 'ban' ? 'został(a) zbanowany(-a)' : 'został(a) wyrzucony(-a)'} przez ${c.name}`);
+        if (m.act === 'ban') { r.bans.add(m.uid); r.banNames[m.uid] = tm.name; }
+        r.members.delete(m.uid); r.mods.delete(m.uid);
+        if (t) { wsSend(t.sock, JSON.stringify({ t: 'closed', reason: m.act === 'ban' ? 'Zostałeś(-aś) zbanowany(-a)' : 'Zostałeś(-aś) wyrzucony(-a)' })); try { t.sock.end(); } catch {} }
+        sendUsers(r);
+        return sys(r, `${tm.name} ${m.act === 'ban' ? 'został(a) zbanowany(-a)' : 'został(a) wyrzucony(-a)'} przez ${by}`);
       }
-      if (m.act === 'mute') r.muted.add(t.id);
-      else if (m.act === 'unmute') r.muted.delete(t.id);
-      else if (m.act === 'promote' && canHost(r, c)) r.mods.add(t.id);
-      else if (m.act === 'demote' && canHost(r, c)) r.mods.delete(t.id);
+      if (m.act === 'mute') r.muted.add(m.uid);
+      else if (m.act === 'unmute') r.muted.delete(m.uid);
+      else if (m.act === 'promote' && canHost(r, c)) r.mods.add(m.uid);
+      else if (m.act === 'demote' && canHost(r, c)) r.mods.delete(m.uid);
       return sendUsers(r);
     }
     case 'room': {
-      if (m.act === 'topic' && canMod(r, c)) { r.topic = clip(m.value, 140); broadcast(r, { t: 'room', room: roomInfo(r) }); return sys(r, `${c.name} ustawił(a) temat: ${r.topic || '(brak)'}`); }
-      if (!canHost(r, c)) return;
-      if (m.act === 'slow') { r.slow = Math.max(0, Math.min(300, parseInt(m.value, 10) || 0)); return broadcast(r, { t: 'room', room: roomInfo(r) }); }
-      if (m.act === 'password') { r.password = clip(m.value, 64); return broadcast(r, { t: 'room', room: roomInfo(r) }); }
+      if (m.act === 'topic' && canMod(r, c)) { r.topic = clip(m.value, 140); broadcast(r, { t: 'room', room: roomInfo(r) }); return sys(r, `${shownRole(r, c.id, false) === 'user' ? 'Moderator' : c.name} ustawił(a) temat: ${r.topic || '(brak)'}`); }
+      if (!canHost(r, c)) return;   // poniżej: uprawnienia hosta (twórcy) i admina
+      const upd = () => broadcast(r, { t: 'room', room: roomInfo(r) });
+      if (m.act === 'slow') { r.slow = Math.max(0, Math.min(300, parseInt(m.value, 10) || 0)); return upd(); }
+      if (m.act === 'password') { r.password = clip(m.value, 64); return upd(); }
+      if (m.act === 'rename') { const n = clip(m.value, 40).trim(); if (n) { r.name = n; upd(); } return; }
+      if (m.act === 'lock') { r.joinLock = !!m.value; return upd(); }
+      if (m.act === 'limit') { r.maxUsers = Math.max(0, Math.min(500, parseInt(m.value, 10) || 0)); return upd(); }
+      if (m.act === 'public') { r.isPublic = !!m.value; return upd(); }
+      if (m.act === 'clear') { r.history = []; broadcast(r, { t: 'cleared' }); return sys(r, 'Historia czatu została wyczyszczona'); }
+      if (m.act === 'bans' || m.act === 'unban') {
+        if (m.act === 'unban') { const k = clip(m.uid, 16); r.bans.delete(k); delete r.banNames[k]; }
+        return wsSend(c.sock, JSON.stringify({ t: 'bans', list: [...r.bans].map(id => ({ id, name: r.banNames[id] || 'Użytkownik ' + id })) }));
+      }
       if (m.act === 'close') return closeRoom(r);
       if (m.act === 'icon') { // ikona pokoju (jak ikona serwera): obraz z mediów tego pokoju albo '' = usuń
         const u = m.value === '' ? '' : validUrl(r, m.value);
-        if (u === '' || (u && u.startsWith('/media/'))) { r.icon = u; broadcast(r, { t: 'room', room: roomInfo(r) }); }
+        if (u === '' || (u && u.startsWith('/media/'))) { r.icon = u; upd(); }
         return;
       }
-      if (m.act === 'sticker' ) { const u = validUrl(r, m.value); if (u && u.startsWith('/media/') && !r.stickers.includes(u) && r.stickers.length < 60) { r.stickers.push(u); broadcast(r, { t: 'room', room: roomInfo(r) }); } return; }
+      if (m.act === 'sticker' ) { const u = validUrl(r, m.value); if (u && u.startsWith('/media/') && !r.stickers.includes(u) && r.stickers.length < 60) { r.stickers.push(u); upd(); } return; }
       return;
     }
   }
+}
+
+// ---------- GIF-y bez klucza: wbudowana paczka (własne animacje generowane programowo) + wyszukiwarka warstwowa ----------
+// Warstwy: 1) paczka wbudowana – działa zawsze, także bez internetu; 2) nekos.best (darmowe reakcje, bez klucza);
+// 3) Wikimedia Commons (dowolne hasło, bez klucza); 4) Giphy – tylko jeśli admin wpisał własny klucz.
+const GIFW = 160, GIFH = 160;
+const GPAL = []; const GC = {};   // paleta (64 kolory) i nazwy kolorów
+(function () {
+  const add = (n, hex) => { GC[n] = GPAL.length; GPAL.push([1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))); };
+  const mix = (hex, t, to) => '#' + [1, 3, 5].map(i => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - t) + parseInt(to.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('');
+  add('bg', '#1e1f22'); add('white', '#ffffff');
+  const base = { blue: '#5865f2', pink: '#eb459e', green: '#23a55a', red: '#f23f43', orange: '#faa81a', cyan: '#00a8fc', purple: '#9b59b6', teal: '#1abc9c' };
+  for (const k in base) add(k, base[k]);
+  for (const k in base) add(k + 'D', mix(base[k], .6, '#000000'));
+  for (const k in base) add(k + 'L', mix(base[k], .5, '#ffffff'));
+  for (let i = 0; i < 12; i++) { const h = i * 30 / 360, f = n => { const k = (n + h * 12) % 12; return Math.round(255 * (.5 - .5 * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); }; add('r' + i, '#' + [f(0), f(8), f(4)].map(v => v.toString(16).padStart(2, '0')).join('')); }
+  add('g1', '#2b2d31'); add('g2', '#3f4147'); add('g3', '#949ba4'); add('gold', '#ffd43b'); add('skin', '#f5c9a0');
+  while (GPAL.length < 64) GPAL.push([0, 0, 0]);
+})();
+// czcionka pikselowa 5x7 (tylko litery potrzebne do haseł w paczce)
+const FONT = {
+  A: ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'], B: ['####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'],
+  D: ['####.', '#...#', '#...#', '#...#', '#...#', '#...#', '####.'], E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
+  G: ['.####', '#....', '#....', '#.###', '#...#', '#...#', '.####'], H: ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+  I: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '#####'], J: ['..###', '...#.', '...#.', '...#.', '...#.', '#..#.', '.##..'],
+  K: ['#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'], L: ['#....', '#....', '#....', '#....', '#....', '#....', '#####'],
+  M: ['#...#', '##.##', '#.#.#', '#.#.#', '#...#', '#...#', '#...#'], N: ['#...#', '##..#', '#.#.#', '#..##', '#...#', '#...#', '#...#'],
+  O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'], P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
+  R: ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'], S: ['.####', '#....', '#....', '.###.', '....#', '....#', '####.'],
+  T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'], U: ['#...#', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  W: ['#...#', '#...#', '#...#', '#.#.#', '#.#.#', '##.##', '#...#'], X: ['#...#', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '#...#'],
+  '!': ['..#..', '..#..', '..#..', '..#..', '..#..', '.....', '..#..'], '?': ['.###.', '#...#', '....#', '...#.', '..#..', '.....', '..#..'],
+};
+const GB = {   // proste narzędzia rysowania na buforze indeksów palety
+  mk: c => new Uint8Array(GIFW * GIFH).fill(c),
+  px(b, x, y, c) { x |= 0; y |= 0; if (x >= 0 && y >= 0 && x < GIFW && y < GIFH) b[y * GIFW + x] = c; },
+  rect(b, x, y, w, h, c) { for (let j = Math.max(0, Math.round(y)); j < Math.min(GIFH, Math.round(y + h)); j++) for (let i = Math.max(0, Math.round(x)); i < Math.min(GIFW, Math.round(x + w)); i++) b[j * GIFW + i] = c; },
+  disc(b, cx, cy, r, c) { for (let j = Math.floor(cy - r); j <= cy + r; j++) for (let i = Math.floor(cx - r); i <= cx + r; i++) if ((i - cx) ** 2 + (j - cy) ** 2 <= r * r) GB.px(b, i, j, c); },
+  ring(b, cx, cy, r, t, c) { const o = (r + t / 2) ** 2, n = (r - t / 2) ** 2; for (let j = Math.floor(cy - r - t); j <= cy + r + t; j++) for (let i = Math.floor(cx - r - t); i <= cx + r + t; i++) { const d = (i - cx) ** 2 + (j - cy) ** 2; if (d <= o && d >= n) GB.px(b, i, j, c); } },
+  line(b, x0, y0, x1, y1, t, c) { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0))); for (let i = 0; i <= n; i++) GB.disc(b, x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, t / 2, c); },
+  text(b, word, cx, cy, sc, color, dy) {
+    const w = (word.length * 6 - 1) * sc, x0 = Math.round(cx - w / 2), y0 = Math.round(cy - 3.5 * sc);
+    for (let i = 0; i < word.length; i++) { const g = FONT[word[i]]; if (!g) continue; const oy = dy ? dy(i) : 0, col = typeof color === 'function' ? color(i) : color;
+      for (let r = 0; r < 7; r++) for (let c = 0; c < 5; c++) if (g[r][c] === '#') { GB.rect(b, x0 + (i * 6 + c) * sc + sc * .55, y0 + r * sc + oy + sc * .55, sc, sc, GC.g2); GB.rect(b, x0 + (i * 6 + c) * sc, y0 + r * sc + oy, sc, sc, col); } }
+  },
+};
+const rb = i => GC['r' + (((i % 12) + 12) % 12)];
+const SN = Math.sin, PI2 = Math.PI * 2;
+// każda animacja: [id, tytuł, słowa kluczowe, funkcja rysująca klatkę (t∈[0,1), i)]
+const GANIMS = [
+  ['gg', 'GG', 'gg dobra gra wygrana brawo gratulacje', (b, t) => { const y = 98 - Math.abs(SN(t * Math.PI * 2)) * 34; GB.text(b, 'GG', 80, y, 10, t < .5 ? GC.green : GC.white); for (let k = 0; k < 6; k++) GB.px(b, 20 + k * 24 + ((t * 8) | 0) % 5, 30 + (k * 37) % 60, GC.gold); }],
+  ['lol', 'LOL', 'lol haha smiech xd rotfl', (b, t, i) => { GB.text(b, 'LOL', 80 + SN(t * PI2 * 3) * 8, 80 + SN(t * PI2 * 6) * 3, 8, i % 2 ? GC.gold : GC.orange); }],
+  ['ok', 'OK', 'ok okej dobrze zgoda super', (b, t) => { GB.ring(b, 80, 80, 66 + SN(t * PI2) * 5, 6, GC.green); GB.text(b, 'OK', 80, 80, 9 + Math.round(SN(t * PI2)), GC.white); }],
+  ['tak', 'TAK', 'tak yes zgoda pewnie jasne', (b, t, i) => { b.fill(i % 2 ? GC.greenD : GC.bg); GB.text(b, 'TAK', 80, 80 + SN(t * PI2) * 5, 8, i % 2 ? GC.white : GC.greenL); }],
+  ['nie', 'NIE', 'nie no nope nigdy stop', (b, t, i) => { b.fill(i % 2 ? GC.redD : GC.bg); GB.text(b, 'NIE', 80 + (i % 2 ? 9 : -9), 80, 8, i % 2 ? GC.white : GC.redL); }],
+  ['wow', 'WOW', 'wow ooo zdziwienie szok niesamowite', (b, t, i) => { for (let k = 0; k < 3; k++) GB.ring(b, 80, 80, ((t + k / 3) % 1) * 85, 5, rb(k * 4 + i)); GB.text(b, 'WOW', 80, 80, 8, k => rb(k * 3 + i)); }],
+  ['hej', 'HEJ', 'hej czesc siema hello hi witaj', (b, t) => { GB.text(b, 'HEJ', 80, 82, 8, GC.cyanL, k => SN(t * PI2 + k * 1.4) * 14); }],
+  ['xd', 'XD', 'xd smiech lol rotfl', (b, t) => { const s = 10 + Math.round(SN(t * PI2)); GB.text(b, 'XD', 80, 76, s, GC.gold); for (let k = 0; k < 3; k++) { const y = 112 + ((t + k / 3) % 1) * 40; GB.disc(b, 36 + k * 44, y, 4, GC.cyan); } }],
+  ['brawo', 'BRAWO', 'brawo gratulacje gratki super party impreza konfetti', (b, t) => { for (let k = 0; k < 26; k++) { const x = (k * 37) % 160, y = ((k * 53) + t * 160 * (1 + (k % 3) * .5)) % 160; GB.rect(b, x, y, 5, 5, rb(k)); } GB.text(b, 'BRAWO', 80, 80, 5, GC.white, k => SN(t * PI2 + k) * 4); }],
+  ['serce', 'Serce', 'serce milosc love kocham heart', (b, t) => { const s = 1 + .13 * SN(t * PI2), f = (px, py, k) => { const nx = (px - 80) / (46 * k), ny = -(py - 78) / (46 * k); return (nx * nx + ny * ny - 1) ** 3 - nx * nx * ny ** 3 <= 0; };
+    for (let y = 0; y < GIFH; y++) for (let x = 0; x < GIFW; x++) if (f(x, y, s)) b[y * GIFW + x] = GC.red;
+    GB.disc(b, 80 - 22 * s, 78 - 22 * s, 7, GC.pinkL); }],
+  ['taniec', 'Taniec', 'taniec tanczy dance impreza disco', (b, t, i) => {
+    const w = t * PI2, bob = Math.abs(SN(w)) * 6, hx = 80, hy = 52 - bob, sx = 80, sy = 70 - bob, hipY = 104 - bob;
+    for (let k = 0; k < 5; k++) GB.disc(b, 16 + k * 32, 12, 8, i % 2 ? rb(k * 2) : rb(k * 2 + 6));
+    GB.disc(b, hx, hy, 12, GC.skin); GB.line(b, sx, sy, sx, hipY, 6, GC.blueL);
+    const arm = (a) => [sx + 30 * SN(a), sy - 30 * Math.cos(a)]; const a1 = -2.2 + .9 * SN(w), a2 = 2.2 - .9 * SN(w);
+    let e = arm(a1); GB.line(b, sx, sy, e[0], e[1], 5, GC.skin); e = arm(a2); GB.line(b, sx, sy, e[0], e[1], 5, GC.skin);
+    GB.line(b, sx, hipY, sx - 16 + 14 * SN(w), 142, 6, GC.blueL); GB.line(b, sx, hipY, sx + 16 + 14 * SN(w + Math.PI), 142, 6, GC.blueL); GB.rect(b, 0, 146, 160, 14, GC.g2); }],
+  ['fajerwerki', 'Fajerwerki', 'fajerwerki sylwester swietowanie party noc', (b, t) => { const C = [[48, 62], [112, 48], [82, 100]]; C.forEach(([cx, cy], k) => { const p = (t + k / 3) % 1; for (let j = 0; j < 16; j++) { const a = j / 16 * PI2, r = p * 44; GB.disc(b, cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3.2 - p * 2, p < .65 ? rb(k * 4 + j) : GC.g3); } GB.disc(b, cx, cy + 40 * (1 - Math.min(1, p * 3)) , 2, GC.white); }); }],
+  ['super', 'SUPER', 'super swietnie rewelacja cool', (b, t, i) => { b.fill(i % 2 ? GC.g1 : GC.bg); GB.text(b, 'SUPER', 80, 80, 5, i % 3 === 0 ? GC.white : i % 3 === 1 ? GC.cyan : GC.cyanL); for (let k = 0; k < 7; k++) GB.px(b, (k * 53 + i * 11) % 160, (k * 29 + i * 7) % 160, GC.gold); }],
+  ['omg', 'OMG', 'omg o boze szok niemozliwe', (b, t, i) => { b.fill(GC.purpleD); GB.text(b, 'OMG', 80 + (i % 2 ? 4 : -4), 80, 8 + Math.round(SN(t * PI2) * 1.2), i % 2 ? GC.white : GC.pinkL); }],
+  ['pytanie', '?!', 'pytanie co jak dlaczego huh nie rozumiem', (b, t) => { GB.text(b, '?!', 80, 98 - Math.abs(SN(t * PI2)) * 26, 12, GC.orange); }],
+];
+function gifLzw(minCode, idx) {   // kompresja LZW zgodna z GIF (wariant jak w omggif)
+  const clear = 1 << minCode, eoi = clear + 1; let size = minCode + 1, next = eoi + 1, cur = 0, curBits = 0; const out = [], table = new Map();
+  const emit = code => { cur |= code << curBits; curBits += size; while (curBits >= 8) { out.push(cur & 255); cur >>>= 8; curBits -= 8; } };
+  emit(clear); let prefix = idx[0];
+  for (let i = 1; i < idx.length; i++) {
+    const k = idx[i], key = (prefix << 8) | k, hit = table.get(key);
+    if (hit !== undefined) { prefix = hit; continue; }
+    emit(prefix);
+    if (next === 4096) { emit(clear); table.clear(); next = eoi + 1; size = minCode + 1; }
+    else { if (next >= (1 << size)) size++; table.set(key, next++); }
+    prefix = k;
+  }
+  emit(prefix); emit(eoi); if (curBits > 0) out.push(cur & 255);
+  return out;
+}
+function gifEncode(frames, delayCs) {
+  const bits = 6, parts = [Buffer.from('GIF89a'), Buffer.from([GIFW & 255, GIFW >> 8, GIFH & 255, GIFH >> 8, 0x80 | ((bits - 1) << 4) | (bits - 1), 0, 0]), Buffer.from(GPAL.flat()),
+    Buffer.from([0x21, 0xff, 0x0b, ...Buffer.from('NETSCAPE2.0'), 0x03, 0x01, 0, 0, 0])];
+  for (const f of frames) {
+    parts.push(Buffer.from([0x21, 0xf9, 0x04, 0x04, delayCs & 255, delayCs >> 8, 0, 0, 0x2c, 0, 0, 0, 0, GIFW & 255, GIFW >> 8, GIFH & 255, GIFH >> 8, 0, bits]));
+    const data = gifLzw(bits, f);
+    for (let i = 0; i < data.length; i += 255) { const n = Math.min(255, data.length - i); parts.push(Buffer.from([n]), Buffer.from(data.slice(i, i + n))); }
+    parts.push(Buffer.from([0]));
+  }
+  parts.push(Buffer.from([0x3b]));
+  return Buffer.concat(parts);
+}
+let GP_CACHE = null;
+function gifPack() {   // generowane przy pierwszym użyciu (ok. sekundy), potem z pamięci
+  if (GP_CACHE) return GP_CACHE;
+  GP_CACHE = new Map();
+  for (const [id, title, tags, draw] of GANIMS) {
+    const N = 14, frames = []; for (let i = 0; i < N; i++) { const b = GB.mk(GC.bg); draw(b, i / N, i); frames.push(b); }
+    GP_CACHE.set(id, { id, title, tags, buf: gifEncode(frames, 7) });
+  }
+  return GP_CACHE;
+}
+const gifPackHas = id => GANIMS.some(a => a[0] === id);
+const noDiac = s => String(s || '').toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+// kategorie nekos.best (59 GIF-ów reakcji, darmowe, bez klucza) i polskie/angielskie słowa kluczowe
+const NEKO = {
+  hug: 'przytul przytulas hug', cuddle: 'przytul tul cuddle', pat: 'poglaszcz glaszcz pat', dance: 'taniec tanczy dance', laugh: 'smiech smieje haha lol laugh',
+  happy: 'szczesliwy radosc cieszy happy', smile: 'usmiech smile', wave: 'czesc hej siema machanie wave hello hi', thumbsup: 'ok kciuk dobrze thumbsup like',
+  facepalm: 'facepalm porazka', cry: 'placz smutek smutny cry', clap: 'brawo oklaski klaskanie clap', shrug: 'wzruszenie shrug', nope: 'nie nope nigdy', nod: 'tak nod kiwa zgoda',
+  highfive: 'piatka highfive', handshake: 'uscisk handshake zgoda', slap: 'policzek slap', bonk: 'bonk', angry: 'zly zlosc angry wsciekly', pout: 'foch pout dasa',
+  blush: 'rumieniec blush wstyd', wink: 'mrugniecie wink', shocked: 'szok shocked zdziwienie wow', confused: 'zdezorientowany confused', think: 'mysli hmm think',
+  sleep: 'spi sleep spanie', yawn: 'ziewanie yawn', bored: 'nuda bored', salute: 'salut salute', blowkiss: 'buziak calus blowkiss', kiss: 'calus kiss', run: 'bieg biegnie run',
+  spin: 'obrot spin', tableflip: 'tableflip', yeet: 'yeet rzut', stare: 'patrzy stare', smug: 'smug zadowolony', teehee: 'teehee chichot', bleh: 'bleh jezyk', sip: 'sip herbata',
+  nom: 'nom je', bite: 'bite gryzie', poke: 'poke szturchniecie', tickle: 'tickle lechtanie', feed: 'feed karmi', kick: 'kick kopniecie', punch: 'punch', shoot: 'shoot strzal',
+  lurk: 'lurk podglada', handhold: 'handhold', baka: 'baka glupek', nya: 'nya kot',
+};
+const NEKO_DEFAULT = ['hug', 'pat', 'dance', 'laugh', 'happy', 'wave', 'thumbsup', 'facepalm', 'cry', 'clap', 'highfive', 'shocked'];
+const gifCache = new Map();
+async function jget(url) { const r = await fetch(url, { headers: { 'user-agent': 'LanChat/' + VERSION }, signal: AbortSignal.timeout(5500) }); if (!r.ok) throw new Error(r.status); return r.json(); }
+async function gifSearch(q) {
+  const nq = noDiac(q).trim(), key = nq, hit = gifCache.get(key);
+  if (hit && Date.now() - hit.t < 10 * 60000) return hit.res;
+  const tokens = nq.split(/[^a-z0-9?!]+/).filter(Boolean);
+  const results = [];
+  for (const g of gifPack().values()) if (!tokens.length || tokens.some(t => noDiac(g.tags + ' ' + g.title).split(' ').some(w => w === t || (t.length >= 3 && w.startsWith(t))))) results.push({ url: `/gifpack/${g.id}.gif`, thumb: `/gifpack/${g.id}.gif`, title: g.title, src: 'local' });
+  const cats = tokens.length ? Object.keys(NEKO).filter(k => tokens.some(t => t === k || NEKO[k].split(' ').some(w => w === t || (t.length >= 4 && w.startsWith(t))))).slice(0, 4) : NEKO_DEFAULT;
+  const jobs = cats.map(c => jget(`https://nekos.best/api/v2/${c}?amount=${tokens.length ? (cats.length > 1 ? 8 : 20) : 3}`).then(j => j.results.map(x => ({ url: x.url, thumb: x.url, title: x.anime_name || c, src: 'nekos' }))));
+  if (tokens.length && !cats.length) jobs.push(jget(`https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q + ' filetype:bitmap mime:image/gif')}&gsrnamespace=6&gsrlimit=16&prop=imageinfo&iiprop=url&iiurlwidth=320&format=json`)
+    .then(j => Object.values((j.query && j.query.pages) || {}).map(p => p.imageinfo && p.imageinfo[0]).filter(i => i && /^https:\/\/upload\.wikimedia\.org\//.test(i.thumburl || '')).map(i => ({ url: i.thumburl, thumb: i.thumburl, title: q, src: 'wiki' }))));
+  if (settings.giphyKey) jobs.unshift(jget(`https://api.giphy.com/v1/gifs/${tokens.length ? 'search' : 'trending'}?api_key=${encodeURIComponent(settings.giphyKey)}&limit=24&rating=pg-13${tokens.length ? '&q=' + encodeURIComponent(q) : ''}`)
+    .then(j => (j.data || []).map(g => ({ url: g.images.fixed_height.url, thumb: (g.images.fixed_height_small || g.images.fixed_height).url, title: g.title, src: 'giphy' }))));
+  const settled = await Promise.allSettled(jobs), online = settled.filter(s => s.status === 'fulfilled').flatMap(s => s.value);
+  const seen = new Set(), res = { results: [...(settings.giphyKey ? online.filter(o => o.src === 'giphy') : []), ...results, ...online.filter(o => o.src !== 'giphy')].filter(x => !seen.has(x.url) && seen.add(x.url)),
+    offline: !!jobs.length && settled.every(s => s.status === 'rejected'), sources: [...new Set(online.map(o => o.src))] };
+  if (!res.results.length && tokens.length) { const d = await gifSearch(''); return Object.assign({}, d, { fallback: true }); }   // zawsze coś pokaż
+  if (!res.offline) { if (gifCache.size > 100) gifCache.delete(gifCache.keys().next().value); gifCache.set(key, { t: Date.now(), res }); }
+  return res;
 }
 
 // ---------- discovery (UDP) ----------
@@ -428,14 +676,7 @@ const server = http.createServer(async (req, res) => {
       const type = sniff(buf);
       if (!type) return sendJson(res, 415, { error: 'type' }, CORS);
       if (r.mediaBytes + buf.length > 150 * 1048576) return sendJson(res, 507, { error: 'room full' }, CORS);
-      const hash = crypto.createHash('sha1').update(buf).digest('hex');
-      let id = r.hashes[hash];
-      if (!id || !media.has(id)) { // identyczny plik (np. awatar przy ponownym wejściu) nie jest zapisywany drugi raz
-        id = rid(16);
-        await fs.promises.writeFile(path.join(MEDIA_DIR, id), buf);
-        media.set(id, { room: r.code, type }); r.mediaTypes[id] = type; r.hashes[hash] = id; r.mediaBytes += buf.length;
-        scheduleSave();
-      }
+      const id = await storeMedia(r, buf, type);   // identyczny plik (np. awatar przy ponownym wejściu) nie jest zapisywany drugi raz
       return sendJson(res, 200, { url: '/media/' + id, type }, CORS);
     }
     if (p === '/download' || p === '/install.ps1' || p === '/install.sh') {
@@ -477,11 +718,12 @@ const server = http.createServer(async (req, res) => {
       });
     }
     if (p === '/api/online') { // wszyscy aktualnie połączeni z tym systemem (we wszystkich pokojach), bez duplikatów
-      const secret = String(req.headers['x-account'] || ''), seen = new Map();
+      const secret = String(req.headers['x-account'] || ''), seen = new Map(), adminReq = isAdminReq(req);
       for (const r of rooms.values()) for (const c of r.clients.values()) {
-        const prev = seen.get(c.cid);
-        if (!prev) seen.set(c.cid, { name: c.name, color: c.color, avatar: c.avatar, bio: c.bio, status: c.status, admin: c.isAdmin, self: !!secret && c.cid === secret });
-        else { if (!prev.avatar && c.avatar) prev.avatar = c.avatar; if (c.isAdmin) prev.admin = true; }
+        const prev = seen.get(c.cid), self = !!secret && c.cid === secret;
+        // admin jest incognito: znacznik „Admin” widzi tylko on sam przy sobie (nikt inny nie dowie się, kto nim jest)
+        if (!prev) seen.set(c.cid, { name: c.name, color: c.color, avatar: c.avatar, bio: c.bio, status: c.status, admin: c.isAdmin && adminReq && self, self });
+        else { if (!prev.avatar && c.avatar) prev.avatar = c.avatar; if (c.isAdmin && adminReq && self) prev.admin = true; }
       }
       const people = [...seen.values()].sort((a, b) => (b.self - a.self) || a.name.localeCompare(b.name, 'pl'));
       return sendJson(res, 200, { people });
@@ -512,14 +754,11 @@ const server = http.createServer(async (req, res) => {
       const r = createRoom(b);
       return sendJson(res, 200, { code: r.code, hostKey: r.hostKey, name: r.name });
     }
-    if (p === '/api/gif') {
-      if (!settings.giphyKey) return sendJson(res, 200, { results: [], nokey: true });
-      const q = u.searchParams.get('q');
-      const url = `https://api.giphy.com/v1/gifs/${q ? 'search' : 'trending'}?api_key=${encodeURIComponent(settings.giphyKey)}&limit=24&rating=pg-13${q ? '&q=' + encodeURIComponent(q) : ''}`;
-      try {
-        const j = await (await fetch(url, { signal: AbortSignal.timeout(6000) })).json();
-        return sendJson(res, 200, { results: (j.data || []).map(g => ({ url: g.images.fixed_height.url, thumb: g.images.fixed_height_small ? g.images.fixed_height_small.url : g.images.fixed_height.url, title: g.title })) });
-      } catch { return sendJson(res, 200, { results: [], offline: true }); }
+    if (p === '/api/gif') return sendJson(res, 200, await gifSearch(u.searchParams.get('q') || ''));
+    if (p.startsWith('/gifpack/')) {
+      const g = gifPack().get(p.slice(9).replace(/.gif$/, ''));
+      if (!g) { res.writeHead(404, CORS); return res.end(); }
+      res.writeHead(200, Object.assign({ 'content-type': 'image/gif', 'cache-control': 'public, max-age=86400', 'x-content-type-options': 'nosniff' }, CORS)); return res.end(g.buf);
     }
     if (p.startsWith('/api/admin/')) {
       if (!isAdminReq(req) || !safeEq(req.headers['x-admin'] || '', ADMIN_TOKEN)) return sendJson(res, 403, { error: 'forbidden' });
@@ -529,7 +768,7 @@ const server = http.createServer(async (req, res) => {
           settings: { ...settings, giphyKey: settings.giphyKey ? '••••' + settings.giphyKey.slice(-4) : '' }, listenPort,
           autostart: { supported: autostartSupported(), on: autostartSupported() && fs.existsSync(STARTUP_LNK) },
           rooms: [...rooms.values()].map(r => ({ code: r.code, name: r.name, locked: !!r.password, isPublic: r.isPublic, created: r.created, mediaMB: +(r.mediaBytes / 1048576).toFixed(1),
-            users: [...r.clients.values()].map(c => ({ id: c.id, name: c.name, ip: c.ip, role: roleOf(r, c) })) })),
+            users: [...r.clients.values()].map(c => ({ id: c.id, name: c.name, ip: c.ip, role: realRole(r, c.id) })) })),
         });
       }
       if (p === '/api/admin/settings') {

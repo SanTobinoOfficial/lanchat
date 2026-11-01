@@ -71,6 +71,8 @@ textarea.inp{height:auto;resize:vertical;min-height:72px;line-height:1.4}
 #ctxm{position:fixed;z-index:1005;background:var(--bgf);border-radius:4px;padding:6px 8px;min-width:210px;box-shadow:var(--shadow3)}
 #ctxm button{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:6px 8px;border-radius:2px;color:var(--head2);font-size:14px}
 #ctxm button:hover{background:var(--brand);color:#fff}#ctxm button.d{color:var(--red)}#ctxm button.d:hover{background:var(--red);color:#fff}#ctxm .sepl{height:1px;background:var(--line);margin:4px 0}
+.gchips{display:flex;gap:6px;overflow-x:auto;padding:0 8px 8px;flex:none;scrollbar-width:none}.gchips::-webkit-scrollbar{display:none}
+.gchips button{flex:none;background:var(--bg3);color:var(--head2);border-radius:14px;padding:3px 10px;font-size:13px;font-weight:500;white-space:nowrap}.gchips button:hover{background:var(--brand);color:#fff}
 .ri.drag{opacity:.4}.ri.over{box-shadow:0 0 0 3px var(--brand)}.ri.muted{opacity:.7}
 .qs{place-items:start center}.qs .modal{margin-top:12vh;max-width:560px}.qs .qin{margin:16px;width:calc(100% - 32px)}
 .qs .qlist{max-height:46vh;overflow-y:auto;padding:0 8px 12px}.qs .qlist .cat{padding:10px 8px 4px}
@@ -214,7 +216,8 @@ img.stk-img{width:160px;height:160px;object-fit:contain;cursor:default;backgroun
 
 .av2{position:relative;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;flex:none;user-select:none;background-size:cover;background-position:center}
 .st{position:absolute;right:-3px;bottom:-3px;width:16px;height:16px;border-radius:50%;border:3px solid var(--bg2);background:var(--green)}
-.st.idle{background:var(--yellow)}.st.dnd{background:var(--red)}
+.st.idle,.st.afk{background:var(--yellow)}.st.dnd{background:var(--red)}.st.offline{background:#80848e}
+.mem.afk{opacity:.78}.mem.off{opacity:.45}.mem.off:hover,.mem.afk:hover{opacity:1}
 .up-who .st{border-color:#232428}
 
 #typing{height:24px;padding:0 16px 0 72px;font-size:14px;font-weight:500;color:var(--head1);display:flex;align-items:center;gap:6px;flex:none}
@@ -235,10 +238,10 @@ img.stk-img{width:160px;height:160px;object-fit:contain;cursor:default;backgroun
 #pop .tabs button.on{border-bottom-color:var(--brand)}#pop .tabs button:hover{background:var(--mod-hover)}
 #pop .grid{overflow:auto;padding:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:2px;align-content:start}
 #pop .grid.big{grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
-#pop .grid.gifs{grid-template-columns:repeat(2,1fr);gap:8px}
+#pop .grid.gifs{grid-template-columns:repeat(3,1fr);gap:6px}
 #pop .grid button{font-size:26px;padding:4px;border-radius:4px;line-height:1.2}#pop .grid button:hover{background:var(--mod-sel)}
 #pop .grid.big button{font-size:48px;border-radius:8px}
-#pop .grid.gifs img{width:100%;border-radius:4px;cursor:pointer}
+#pop .grid.gifs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;cursor:pointer;background:var(--bg3)}#pop .grid.gifs img:hover{outline:2px solid var(--brand)}
 #pop img.s{width:80px;height:80px;object-fit:contain;cursor:pointer;border-radius:8px}#pop img.s:hover{background:var(--mod-sel)}
 #pop .inp{margin:8px;width:calc(100% - 16px);flex:none}#pop .cat{padding:8px 12px 0}
 
@@ -644,7 +647,7 @@ function saveAccount(now) {
   const run = () => { syncRooms(); fetch('/api/account', { method: 'PUT', headers: { 'x-account': cid }, body: JSON.stringify(account) }).catch(() => {}); };
   if (now) run(); else saveT = setTimeout(run, 400);
 }
-const statusLabel = { online: 'Online', idle: 'Zaraz wracam', dnd: 'Nie przeszkadzać' };
+const statusLabel = { online: 'Online', idle: 'AFK', dnd: 'Nie przeszkadzać', afk: 'AFK (rozłączony/a)', offline: 'Niedostępny/a' };
 function renderUserPanel() {
   $('#upName').textContent = account.name; $('#upAv').replaceChildren(avatar(account.name, account.color, 32, account.status, account.avatar));
   const r = curSt() && view === 'chat' && ({ admin: 'Admin', host: 'Host pokoju', mod: 'Moderator' })[curSt().you.role];
@@ -701,7 +704,7 @@ function openSettings(tab = 'account') {
       const redraw = () => prev.replaceChildren(el('div', { class: 'ub', style: 'background:' + d.color }), el('div', { class: 'uav' }, avatar(d.name, d.color, 80, d.status, d.avatar)),
         el('div', { class: 'ubody' }, el('div', { class: 'un', text: d.name || '—' }), el('div', { class: 'us', text: statusLabel[d.status] }), d.bio ? el('div', { class: 'bio' }, el('div', { class: 'lbl', text: 'O mnie' }), d.bio) : null));
       nm.oninput = () => { d.name = nm.value; redraw(); }; bio.oninput = () => { d.bio = bio.value; redraw(); };
-      const st = el('div', { class: 'seg' }); ['online', 'idle', 'dnd'].forEach(s => st.append(el('button', { class: d.status === s ? 'on' : '', text: ({ online: '🟢 Online', idle: '🌙 Zaraz wracam', dnd: '⛔ Nie przeszkadzać' })[s], onclick: () => { d.status = s; draw(); } })));
+      const st = el('div', { class: 'seg' }); ['online', 'idle', 'dnd'].forEach(s => st.append(el('button', { class: d.status === s ? 'on' : '', text: ({ online: '🟢 Online', idle: '🌙 AFK', dnd: '⛔ Nie przeszkadzać' })[s], onclick: () => { d.status = s; draw(); } })));
       body.append(prev, el('div', { class: 'row', style: 'margin-bottom:16px' }, el('button', { class: 'btn sm', text: 'Zmień zdjęcie', onclick: () => pickAvatar(u => { d.avatar = u; draw(); }) }), d.avatar ? el('button', { class: 'btn sec sm', text: 'Usuń zdjęcie', onclick: () => { d.avatar = ''; draw(); } }) : null),
         field('Nick', nm), field('O mnie', bio), field('Kolor nicku', swatches(d.color, c => { d.color = c; redraw(); })), field('Status', st)); redraw();
     } else if (tab === 'look') {
@@ -798,7 +801,7 @@ function onServer(C, m) {
   const active = C === cur && view === 'chat';
   switch (m.t) {
     case 'error': {
-      const map = { notfound: 'Ten pokój już nie istnieje.', password: 'Pokój wymaga hasła (lub hasło się zmieniło).', banned: 'Masz bana w tym pokoju.', full: 'Pokój jest pełny.' };
+      const map = { notfound: 'Ten pokój już nie istnieje.', password: 'Pokój wymaga hasła (lub hasło się zmieniło).', banned: 'Masz bana w tym pokoju.', locked: 'Host zablokował dołączanie nowych osób do tego pokoju.', full: 'Pokój jest pełny.' };
       C.fatal = true; C.state = 'offline'; C.errCode = m.code; C.error = map[m.code] || 'Błąd połączenia.';
       if (m.code === 'notfound' && C.addr === location.host) { removeConn(C, 'Pokój „' + C.name + '” już nie istnieje – usunięto go z listy.'); return; }
       refreshAll(C); break;
@@ -823,6 +826,8 @@ function onServer(C, m) {
     case 'del': { const i = C.hist.findIndex(h => h.id === m.mid); if (i >= 0) C.hist.splice(i, 1); if (active) document.getElementById('m' + m.mid)?.remove(); break; }
     case 'typing': C.typing[m.uid] = { name: m.name, t: Date.now() }; if (active) renderTyping(); break;
     case 'notice': if (active) toast(m.text); break;
+    case 'bans': if (active) showBans(C, m.list); break;
+    case 'cleared': C.hist = []; C.lastMsg = null; C.lastDay = null; if (active) renderChatFull(); break;
     case 'closed': {
       const w = C.ws; C.ws = null; try { w && w.close(); } catch {}
       if (/zamkni/i.test(m.reason || '')) return removeConn(C, 'Pokój „' + C.name + '” został zamknięty.');
@@ -918,7 +923,7 @@ function renderChan() {
     }
     body.append(el('div', { class: 'cat', text: 'Pokój' }));
     if (on && mod) body.append(item('⚙️', 'Ustawienia pokoju', roomSettings));
-    body.append(item('🚪', 'Opuść pokój', () => confirmBox('Opuścić „' + C.name + '”? Zniknie z Twojej listy (możesz wrócić kodem).', () => removeConn(C), 'Opuść'), 'danger'));
+    body.append(item('🚪', 'Opuść pokój', () => confirmBox('Opuścić „' + C.name + '”? Zniknie z Twojej listy i z listy osób w pokoju (możesz wrócić kodem).', () => leaveRoom(C), 'Opuść'), 'danger'));
   }
 }
 
@@ -1054,29 +1059,40 @@ function renderBody(s) {
 const ROLE = { admin: 'Admin', host: 'Host', mod: 'Mod' };
 function renderMembers() {
   const box = $('#memberList'); box.textContent = ''; const S = curSt(); if (!S) return;
-  for (const [label, fn] of [['Prowadzący', u => u.role === 'admin' || u.role === 'host'], ['Moderatorzy', u => u.role === 'mod'], ['Użytkownicy', u => u.role === 'user']]) {
-    const l = S.users.filter(fn); if (!l.length) continue;
+  // obecność: najpierw Online, potem AFK (nieaktywni lub dopiero co rozłączeni), na końcu Niedostępni.
+  // Rozłączenie NIE usuwa z pokoju – osoba zostaje na liście.
+  const act = u => u.status === 'online' || u.status === 'dnd', staff = u => ['admin', 'host'].includes(u.role);
+  const shown = new Set();
+  for (const [label, fn] of [['Prowadzący', u => act(u) && staff(u)], ['Moderatorzy', u => act(u) && u.role === 'mod'], ['Online', u => act(u)],
+    ['AFK', u => u.status === 'idle' || u.status === 'afk'], ['Niedostępni', u => u.status === 'offline']]) {
+    const l = S.users.filter(u => fn(u) && !shown.has(u.id)); if (!l.length) continue;
     box.append(el('div', { class: 'cat', text: label + ' — ' + l.length }));
-    for (const u of l) box.append(el('button', { class: 'mem', onclick: e => userCard(u, e) }, avatar(u.name, u.color, 32, u.status || 'online', u.avatar && abs(u.avatar)), el('b', { text: u.name + (u.id === S.you.id ? ' (Ty)' : '') + (u.muted ? ' 🔇' : '') })));
+    for (const u of l) {
+      shown.add(u.id);
+      box.append(el('button', { class: 'mem' + (u.status === 'offline' ? ' off' : u.status === 'afk' || u.status === 'idle' ? ' afk' : ''), onclick: e => userCard(u, e) },
+        avatar(u.name, u.color, 32, u.status || 'online', u.avatar && abs(u.avatar)),
+        el('b', { text: u.name + (u.id === S.you.id ? ' (Ty)' : '') + (u.muted ? ' 🔇' : '') }), ROLE[u.role] && !staff(u) ? el('span', { class: 'tag ' + u.role, text: ROLE[u.role] }) : null));
+    }
   }
 }
 function closeAll() { $('#ucard')?.remove(); $('#qr')?.remove(); }
 document.addEventListener('click', e => { if (!e.target.closest('#ucard,.mem,.hd b,.mention,.m > .av2')) $('#ucard')?.remove(); });
 function userCard(u, ev) {
   ev.stopPropagation(); $('#ucard')?.remove(); const S = curSt();
-  const canMod = ['admin', 'host', 'mod'].includes(S.you.role), canHost = ['admin', 'host'].includes(S.you.role), ctx = el('div', { class: 'ctx' });
+  // poziomy: admin (ukryty) > host > moderator > użytkownik – wyższy poziom może działać na niższych (także na osobach AFK/niedostępnych)
+  const L = { user: 0, mod: 1, host: 2, admin: 3 }, my = L[S.you.role] || 0, their = L[u.role] || 0, ctx = el('div', { class: 'ctx' });
   const item = (txt, fn, d) => ctx.append(el('button', { class: d ? 'd' : '', text: txt, onclick: () => { $('#ucard')?.remove(); fn(); } }));
   if (u.id !== S.you.id) {
-    item('@ Wspomnij', () => { $('#input').value += '@' + u.name + ' '; $('#input').focus(); });
-    if (canMod && !['admin', 'host'].includes(u.role) && !(u.role === 'mod' && !canHost)) {
+    if (u.online !== false) item('@ Wspomnij', () => { $('#input').value += '@' + u.name.replace(/\s+/g, '_') + ' '; $('#input').focus(); });
+    if (my >= 1 && my > their) {
       item(u.muted ? '🔊 Odcisz' : '🔇 Wycisz', () => send({ t: 'mod', act: u.muted ? 'unmute' : 'mute', uid: u.id }));
-      if (canHost) item(u.role === 'mod' ? '⬇️ Odbierz moderatora' : '⭐ Nadaj moderatora', () => send({ t: 'mod', act: u.role === 'mod' ? 'demote' : 'promote', uid: u.id }));
-      item('👢 Wyrzuć', () => send({ t: 'mod', act: 'kick', uid: u.id }), true);
+      if (my >= 2) item(u.role === 'mod' ? '⬇️ Odbierz moderatora' : '⭐ Nadaj moderatora', () => send({ t: 'mod', act: u.role === 'mod' ? 'demote' : 'promote', uid: u.id }));
+      item(u.online === false ? '👢 Usuń z pokoju' : '👢 Wyrzuć', () => send({ t: 'mod', act: 'kick', uid: u.id }), true);
       item('⛔ Zbanuj', () => confirmBox('Zbanować ' + u.name + ' w tym pokoju?', () => send({ t: 'mod', act: 'ban', uid: u.id }), 'Zbanuj'), true);
     }
   }
   const card = el('div', { id: 'ucard', class: 'pcard' }, el('div', { class: 'ub', style: 'background:' + u.color }), el('div', { class: 'uav' }, avatar(u.name, u.color, 80, u.status || 'online', u.avatar && abs(u.avatar))),
-    el('div', { class: 'ubody' }, el('div', { class: 'un', text: u.name }), el('div', { class: 'us', text: ({ admin: 'Admin instancji', host: 'Host pokoju', mod: 'Moderator', user: 'Użytkownik' })[u.role] + ' · ' + statusLabel[u.status || 'online'] + (u.muted ? ' · wyciszony(-a)' : '') }),
+    el('div', { class: 'ubody' }, el('div', { class: 'un', text: u.name }), el('div', { class: 'us', text: ({ admin: 'Admin (widoczny tylko dla Ciebie)', host: 'Host pokoju', mod: 'Moderator', user: 'Użytkownik' })[u.role] + ' · ' + statusLabel[u.status || 'online'] + (u.muted ? ' · wyciszony(-a)' : '') }),
       u.bio ? el('div', { class: 'bio' }, el('div', { class: 'lbl', text: 'O mnie' }), u.bio) : null, ctx.children.length ? ctx : null));
   document.body.append(card);
   const r = ev.currentTarget.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
@@ -1092,18 +1108,37 @@ function roomSettings() {
   const drawIcon = () => { iconBox.textContent = ''; const src = newIcon || (!rmIcon && S.room.icon ? C.base + S.room.icon : '');
     iconBox.append(avatar(S.room.name, hsl(S.room.name), 56, null, src), el('button', { class: 'btn sm', text: 'Wybierz ikonę', onclick: () => pickAvatar(u => { newIcon = u; rmIcon = false; drawIcon(); }) }), src ? el('button', { class: 'btn sec sm', text: 'Usuń', onclick: () => { newIcon = null; rmIcon = true; drawIcon(); } }) : null); };
   drawIcon();
+  const nameIn = el('input', { class: 'inp', maxlength: 40, value: S.room.name }), limitIn = el('input', { class: 'inp', type: 'number', min: 0, max: 500, value: S.room.maxUsers || 0 });
+  const lockCb = el('input', { type: 'checkbox' }); lockCb.checked = !!S.room.joinLock; const pubCb = el('input', { type: 'checkbox' }); pubCb.checked = !!S.room.isPublic;
   const body = el('div', null, field('Temat', topic));
-  if (host) body.append(field('Ikona pokoju', iconBox, '(widoczna na pasku po lewej)'), field('Tryb powolny', slow, '(sekundy między wiadomościami)'), field('Hasło pokoju', pass), field('Własna naklejka pokoju', upl),
-    el('button', { class: 'btn danger sm', text: 'Zamknij pokój i usuń historię', onclick: () => confirmBox('Zamknąć pokój? Wszyscy zostaną wyrzuceni, a historia usunięta.', () => sendTo(C, { t: 'room', act: 'close' }), 'Zamknij pokój') }));
+  if (host) body.append(field('Nazwa pokoju', nameIn), field('Ikona pokoju', iconBox, '(widoczna na pasku po lewej)'), field('Tryb powolny', slow, '(sekundy między wiadomościami)'), field('Hasło pokoju', pass),
+    field('Limit osób online', limitIn, '(0 = bez limitu)'),
+    el('label', { class: 'chk' }, lockCb, 'Zablokuj dołączanie nowych osób (obecni członkowie mogą wracać)'), el('label', { class: 'chk' }, pubCb, 'Pokaż pokój w „Odkrywaj” (publiczny)'),
+    field('Własna naklejka pokoju', upl),
+    el('div', { class: 'row', style: 'flex-wrap:wrap;margin-top:4px' },
+      el('button', { class: 'btn sec sm', text: '⛔ Zbanowani…', onclick: () => sendTo(C, { t: 'room', act: 'bans' }) }),
+      el('button', { class: 'btn danger sm', text: '🧹 Wyczyść historię', onclick: () => confirmBox('Wyczyścić całą historię czatu? Tego nie da się cofnąć.', () => sendTo(C, { t: 'room', act: 'clear' }), 'Wyczyść') }),
+      el('button', { class: 'btn danger sm', text: 'Zamknij pokój', onclick: () => confirmBox('Zamknąć pokój? Wszyscy zostaną wyrzuceni, a historia usunięta.', () => sendTo(C, { t: 'room', act: 'close' }), 'Zamknij pokój') })));
   dialog({ title: 'Ustawienia pokoju', body, buttons: [{ text: 'Anuluj', cls: 'link' }, { text: 'Zapisz', onclick: () => { (async () => {
     if (topic.value !== S.room.topic) sendTo(C, { t: 'room', act: 'topic', value: topic.value });
     if (host) { if (+slow.value !== S.room.slow) sendTo(C, { t: 'room', act: 'slow', value: slow.value });
+      if (nameIn.value.trim() && nameIn.value.trim() !== S.room.name) sendTo(C, { t: 'room', act: 'rename', value: nameIn.value.trim() });
+      if (lockCb.checked !== !!S.room.joinLock) sendTo(C, { t: 'room', act: 'lock', value: lockCb.checked });
+      if (pubCb.checked !== !!S.room.isPublic) sendTo(C, { t: 'room', act: 'public', value: pubCb.checked });
+      if (+limitIn.value !== (S.room.maxUsers || 0)) sendTo(C, { t: 'room', act: 'limit', value: limitIn.value });
       if (passTouched) { sendTo(C, { t: 'room', act: 'password', value: pass.value }); C.password = pass.value; saveAccount(); }
       if (newIcon) { const u = await upload(await (await fetch(newIcon)).blob()); if (u) sendTo(C, { t: 'room', act: 'icon', value: u }); }
       else if (rmIcon) sendTo(C, { t: 'room', act: 'icon', value: '' });
       if (upl.files[0]) { const u = await upload(upl.files[0]); if (u) sendTo(C, { t: 'room', act: 'sticker', value: u }); } }
     toast('Zapisano'); })(); } }] });
 }
+
+function showBans(C, list) {
+  const body = el('div'); if (!list.length) body.append(el('div', { class: 'muted', text: 'Nikt nie jest zbanowany w tym pokoju.' }));
+  list.forEach(b => body.append(el('div', { class: 'row', style: 'margin:6px 0' }, el('span', { style: 'flex:1', text: b.name }), el('button', { class: 'btn sec sm', text: 'Odbanuj', onclick: () => sendTo(C, { t: 'room', act: 'unban', uid: b.id }) }))));
+  dialog({ title: 'Zbanowani w pokoju', body, buttons: [{ text: 'Zamknij', cls: 'sec' }] });
+}
+function leaveRoom(C) { sendTo(C, { t: 'leave' }); setTimeout(() => removeConn(C), 150); }   // świadome opuszczenie: dopiero to „wychodzi” z pokoju
 
 /* ---------- renderowanie tekstu ---------- */
 const SHORT = { smile: '😄', grin: '😁', joy: '😂', rofl: '🤣', wink: '😉', heart: '❤️', fire: '🔥', thumbsup: '👍', '+1': '👍', '-1': '👎', clap: '👏', pray: '🙏', eyes: '👀', tada: '🎉', party: '🥳', cry: '😢', sob: '😭', angry: '😠', cool: '😎', thinking: '🤔', shrug: '🤷', facepalm: '🤦', ok: '👌', wave: '👋', 100: '💯', skull: '💀', poop: '💩', rocket: '🚀', star: '⭐', sun: '☀️', moon: '🌙', cat: '🐱', dog: '🐶', pizza: '🍕', beer: '🍺', coffee: '☕', cake: '🍰', music: '🎵', game: '🎮', laugh: '😆', sleepy: '😴', love: '😍', kiss: '😘', sad: '😞', think: '🤔', muscle: '💪', check: '✅', x: '❌', warning: '⚠️', zap: '⚡', ghost: '👻', robot: '🤖', unicorn: '🦄' };
@@ -1253,6 +1288,9 @@ const EMOJI = {
 };
 const STICKERS = [['🔥', 'Ogień'], ['😂', 'Haha'], ['😭', 'Płaczę'], ['😍', 'Love'], ['🥳', 'Impreza'], ['😎', 'Cool'], ['🤔', 'Hmm'], ['🙄', 'No weź'], ['😴', 'Śpię'], ['🤯', 'Wow'], ['💀', 'Padłem'], ['👍', 'Okej'], ['👏', 'Brawo'], ['🙏', 'Proszę'], ['❤️', 'Serce'], ['🎉', 'Hura'], ['💯', 'Sto'], ['🤝', 'Deal'], ['😡', 'Wrr'], ['🤗', 'Przytul'], ['🫡', 'Tak jest'], ['🤌', 'Mamma mia'], ['👀', 'Patrzę'], ['🚀', 'Lecimy']];
 let popKind = null, gifTimer = null;
+// linki ze stron Giphy / Imgur .gifv zamieniamy na bezpośredni plik GIF, żeby „wklejony link zawsze działał”
+const normGif = u => { u = String(u).trim(); const m = u.match(/^https?:\/\/(?:www\.)?giphy\.com\/(?:gifs|stickers|clips)\/(?:[^/?#]*-)?([A-Za-z0-9]+)(?:[/?#].*)?$/); if (m) return `https://media.giphy.com/media/${m[1]}/giphy.gif`; return u.replace(/^(https?:\/\/(?:i\.)?imgur\.com\/[A-Za-z0-9]+)\.gifv(\?.*)?$/i, '$1.gif'); };
+const rememberGif = g => { const l = store.get('gifs', []).filter(x => x.url !== g.url); l.unshift({ url: g.url, thumb: g.thumb || g.url, title: g.title || '' }); store.set('gifs', l.slice(0, 12)); };
 function closePop() { $('#pop').hidden = true; popKind = null; }
 document.addEventListener('click', e => { if (popKind && !e.target.closest('#pop,#emojiBtn,#stickerBtn,#gifBtn')) closePop(); });
 function openPop(kind, preset) {
@@ -1271,17 +1309,25 @@ function openPop(kind, preset) {
     if (cs.length) { const custom = el('div', { class: 'grid' }); cs.forEach(u => custom.append(el('img', { class: 's', src: abs(u), onclick: () => sendExtra({ t: 'sticker', url: u }) }))); p.append(el('div', { class: 'cat', text: 'Naklejki pokoju' }), custom); }
     else p.append(el('div', { class: 'muted', style: 'padding:8px 12px', text: 'Host może dodać własne naklejki w ustawieniach pokoju.' }));
   } else if (kind === 'gif') {
-    const search = el('input', { class: 'inp', placeholder: me.giphy ? 'Szukaj GIF-ów (Giphy)' : 'Wklej link do GIF-a i Enter', value: preset || '' }), grid = el('div', { class: 'grid gifs' });
+    // GIF-y działają bez klucza: wbudowana paczka + reakcje (nekos.best) + Wikimedia; Giphy tylko jeśli admin ma własny klucz
+    const search = el('input', { class: 'inp', placeholder: 'Szukaj GIF-ów (np. przytul, taniec) lub wklej link', value: preset || '' }), grid = el('div', { class: 'grid gifs' }), note = el('div', { class: 'muted', style: 'padding:0 12px 6px;min-height:20px' });
+    const chips = el('div', { class: 'gchips' });
+    const tile = g => el('img', { src: g.thumb, title: g.title, loading: 'lazy', onclick: () => { rememberGif(g); sendExtra({ t: 'gif', url: g.url }); } });
+    let seq = 0;
     const run = async () => {
-      grid.textContent = '';
-      if (!me.giphy) return grid.append(el('div', { class: 'muted', style: 'grid-column:1/-1', text: 'Wyszukiwarka GIF-ów jest wyłączona (admin może wpisać klucz Giphy w panelu). Wklej link do GIF-a albo wyślij plik przyciskiem ➕.' }));
-      const j = await (await fetch('/api/gif?q=' + encodeURIComponent(search.value))).json();
-      if (j.offline) grid.append(el('div', { class: 'muted', style: 'grid-column:1/-1', text: 'Brak internetu – nie mogę pobrać GIF-ów.' }));
-      for (const g of j.results) grid.append(el('img', { src: g.thumb, title: g.title, loading: 'lazy', onclick: () => sendExtra({ t: 'gif', url: g.url }) }));
+      const my = ++seq, q = search.value.trim(); grid.textContent = ''; note.textContent = 'Szukam…';
+      const recent = !q ? store.get('gifs', []) : [];
+      if (recent.length) { grid.append(el('div', { class: 'cat', style: 'grid-column:1/-1;padding:4px 4px 0', text: 'Ostatnio używane' })); recent.forEach(g => grid.append(tile(g))); grid.append(el('div', { class: 'cat', style: 'grid-column:1/-1;padding:8px 4px 0', text: 'Polecane' })); }
+      let j; try { j = await (await fetch('/api/gif?q=' + encodeURIComponent(q))).json(); } catch { j = { results: [], offline: true }; }
+      if (my !== seq) return;   // starsza odpowiedź nie nadpisze nowszej
+      note.textContent = j.fallback ? 'Brak wyników dla „' + q + '” – pokazuję polecane.' : j.offline ? 'Brak internetu – pokazuję tylko wbudowane GIF-y (możesz też wkleić link lub wysłać plik ➕).' : '';
+      j.results.forEach(g => grid.append(tile(g)));
+      if (!j.results.length && !recent.length) grid.append(el('div', { class: 'muted', style: 'grid-column:1/-1;padding:8px', text: 'Nic nie znaleziono.' }));
     };
+    for (const [l, q] of [['👏 Brawo', 'brawo'], ['😂 Śmiech', 'smiech'], ['🤗 Przytul', 'przytul'], ['💃 Taniec', 'taniec'], ['😢 Płacz', 'placz'], ['👋 Cześć', 'czesc'], ['🤦 Facepalm', 'facepalm'], ['😮 Szok', 'szok'], ['👍 OK', 'ok'], ['😴 Sen', 'sleep']]) chips.append(el('button', { text: l, onclick: () => { search.value = q; run(); } }));
     search.addEventListener('input', () => { clearTimeout(gifTimer); gifTimer = setTimeout(run, 350); });
-    search.addEventListener('keydown', e => { if (e.key === 'Enter' && /^https?:\/\//i.test(search.value.trim())) sendExtra({ t: 'gif', url: search.value.trim() }); });
-    p.append(search, grid); search.focus(); run();
+    search.addEventListener('keydown', e => { if (e.key === 'Enter' && /^https?:\/\//i.test(search.value.trim())) { const u = normGif(search.value); rememberGif({ url: u, thumb: u, title: 'link' }); sendExtra({ t: 'gif', url: u }); } });
+    p.append(search, chips, note, grid, el('div', { class: 'muted', style: 'padding:6px 12px;font-size:12px', text: 'GIF-y: wbudowane, nekos.best, Wikimedia Commons – bez klucza i bez konta.' })); search.focus(); run();
   }
 }
 $('#emojiBtn').onclick = () => openPop('emoji'); $('#stickerBtn').onclick = () => openPop('sticker'); $('#gifBtn').onclick = () => openPop('gif');
@@ -1311,7 +1357,7 @@ $('#adminBtn').onclick = () => {
     body.append(el('div', { class: 'cat', style: 'padding-left:0', text: 'Ustawienia' }),
       el('label', { class: 'chk' }, lan, 'Goście z LAN mogą tworzyć pokoje'), el('label', { class: 'chk' }, srv, 'Serwuj instalator jedną komendą (dla drugiego administratora)'),
       s.autostart && s.autostart.supported ? el('label', { class: 'chk' }, asu, 'Uruchamiaj LanChat automatycznie po zalogowaniu do Windows (bez uprawnień administratora)') : null,
-      ...[['Twoja nazwa hosta', 'hostName'], ['Maks. pokoi', 'maxRooms'], ['Maks. osób w pokoju', 'maxUsersPerRoom'], ['Limit pliku (MB)', 'uploadLimitMB'], ['Klucz Giphy (wyszukiwarka GIF)', 'giphyKey']].map(([l, k]) => field(l, f[k])));
+      ...[['Twoja nazwa hosta', 'hostName'], ['Maks. pokoi', 'maxRooms'], ['Maks. osób w pokoju', 'maxUsersPerRoom'], ['Limit pliku (MB)', 'uploadLimitMB'], ['Klucz Giphy (opcjonalny – GIF-y działają i bez niego)', 'giphyKey']].map(([l, k]) => field(l, f[k])));
     body.append(el('div', { class: 'cat', style: 'padding-left:0', text: 'Zbanowane IP' })); if (!cfg.bannedIps.length) body.append(el('div', { class: 'muted', text: 'Brak.' }));
     for (const ip of cfg.bannedIps) body.append(el('div', { class: 'row', style: 'margin:4px 0' }, el('span', { style: 'flex:1', text: ip }), el('button', { class: 'btn sec sm', text: 'Odbanuj', onclick: async () => { await api('unban', { ip }); draw(); } })));
     dialog({ title: '🛡️ Panel admina', body, size: 'wide', buttons: [{ text: 'Zamknij', cls: 'link' }, { text: 'Zapisz ustawienia', onclick: () => { const b = { allowLanHosting: lan.checked, serveInstaller: srv.checked }; for (const k in f) b[k] = f[k].value; api('settings', b).then(async () => { me = await (await fetch('/api/me')).json(); toast('Zapisano'); }); } }] });
@@ -1337,7 +1383,7 @@ function roomMenu(C, x, y) {
     { label: C.muted ? '🔔 Włącz powiadomienia' : '🔕 Wycisz pokój', fn: () => { C.muted = !C.muted; if (C.muted) { C.unread = 0; C.firstUnread = null; } saveAccount(true); renderRail(); renderChan(); renderHome(); updTitle(); toast(C.muted ? 'Pokój wyciszony' : 'Powiadomienia włączone'); } },
     { label: '🔑 Skopiuj kod pokoju', fn: () => copy(C.code, 'Skopiowano kod') },
     { label: '🔗 Skopiuj link zaproszenia', fn: () => copy(inviteLink(C), 'Skopiowano link – nikt nie musi nic instalować') },
-    '-', { label: '🚪 Opuść pokój', danger: true, fn: () => confirmBox('Opuścić „' + C.name + '”? Zniknie z Twojej listy (możesz wrócić kodem).', () => removeConn(C), 'Opuść') },
+    '-', { label: '🚪 Opuść pokój', danger: true, fn: () => confirmBox('Opuścić „' + C.name + '”? Zniknie z Twojej listy i z listy osób w pokoju (możesz wrócić kodem).', () => leaveRoom(C), 'Opuść') },
   ].filter(Boolean), x, y);
 }
 function msgMenu(m, mine, canMod, x, y) {
@@ -1423,7 +1469,7 @@ document.addEventListener('keydown', e => {
   if (view === 'chat' && cur && cur.state === 'online' && !mod && !e.altKey && e.key.length === 1 && e.key !== ' ' && !$('#modalRoot').children.length && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) input.focus();
 });
 
-// auto-idle: po 5 minutach bez ruchu inni widzą „Zaraz wracam”, po powrocie wraca Twój status
+// auto-idle: po 5 minutach bez ruchu inni widzą „AFK”, po powrocie wraca Twój status
 let lastAct = Date.now(), autoIdle = false;
 const pushStatus = () => { const s = autoIdle && account.status === 'online' ? 'idle' : account.status; conns.forEach(C => sendTo(C, { t: 'profile', status: s })); };
 function autoIdleTick() { if (!autoIdle && account && account.status === 'online' && Date.now() - lastAct > 5 * 60e3) { autoIdle = true; pushStatus(); } }

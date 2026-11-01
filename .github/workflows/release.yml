@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: 24
       - run: node test.js
+      - run: node test2.js
 
   build:
     strategy:
