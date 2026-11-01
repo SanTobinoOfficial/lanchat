@@ -1,29 +1,41 @@
 name: release
-# Tag „v*” (np. v0.2.0) buduje pojedyncze pliki wykonywalne i publikuje wydanie razem z instalatorami.
+# Tag "v*" (np. v0.2.0) buduje pojedyncze pliki wykonywalne i publikuje wydanie razem z instalatorami.
 on:
-  push: { tags: ['v*'] }
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
-permissions: { contents: write }
+
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 24 }
+        with:
+          node-version: 24
       - run: node test.js
+
   build:
     strategy:
       fail-fast: false
-      matrix: { os: [windows-latest, ubuntu-latest, macos-latest] }
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 24 }
+        with:
+          node-version: 24
       - run: node build.js
       - uses: actions/upload-artifact@v4
-        with: { name: bin-${{ matrix.os }}, path: dist/lanchat-* }
+        with:
+          name: bin-${{ matrix.os }}
+          path: dist/lanchat-*
+
   release:
     needs: build
     if: ${{ always() && startsWith(github.ref, 'refs/tags/') && needs.build.result != 'cancelled' }}
@@ -31,7 +43,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-        with: { path: out, merge-multiple: true }
+        with:
+          path: out
+          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
