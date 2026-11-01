@@ -73,13 +73,23 @@ const deviceHdr = req => { try { const x = JSON.parse(String(req.headers['x-devi
 function noteSeen(secret, ip, ua, extra, name, method) {
   if (!secret || method === 'base64') return;
   const id = accId(secret), now = Date.now(), rec = devices[id] || (devices[id] = { first: now, ips: {}, devices: {} });
-  rec.name = clip(name, 24) || rec.name || 'Gość'; rec.method = method === 'browser' ? 'browser' : 'server'; rec.last = now; rec.ips[ip] = now;
+  rec.name = clip(name, 24) || rec.name || 'Gość'; rec.method = method === 'browser' ? 'browser' : method === 'password' ? 'password' : 'server'; rec.last = now; rec.ips[ip] = now;
   const k = crypto.createHash('sha1').update(String(ua)).digest('hex').slice(0, 8), d = rec.devices[k] || { first: now };
   rec.devices[k] = Object.assign(d, { label: parseDevice(ua).label, screen: extra && extra.w ? extra.w + '×' + extra.h : d.screen || '', last: now, ip });
   const ips = Object.entries(rec.ips); if (ips.length > 8) rec.ips = Object.fromEntries(ips.sort((x, y) => y[1] - x[1]).slice(0, 8));
   const dv = Object.entries(rec.devices); if (dv.length > 8) rec.devices = Object.fromEntries(dv.sort((x, y) => y[1].last - x[1].last).slice(0, 8));
   saveDevices();
 }
+// metoda „hasło”: nazwa konta + hasło (na dysku tylko skrót scrypt z solą), odzyskanie konta na dowolnym urządzeniu
+const logins = new Map();   // nazwa konta -> accId
+function indexLogins() { logins.clear(); for (const [id, a] of Object.entries(accounts)) if (a && a.auth && a.auth.login) logins.set(a.auth.login, id); }
+indexLogins();
+const DUMMY_SALT = crypto.randomBytes(16), hashPw = (pw, salt) => crypto.scryptSync(String(pw), salt, 32);
+const acctMethod = id => accounts[id] && accounts[id].auth ? 'password' : 'server';
+const fails = new Map();    // ip -> { n, t, until } – po 5 błędnych próbach blokada na 5 minut (ochrona przed zgadywaniem)
+const LOCK_MS = +process.env.LANCHAT_LOCK_MS || 5 * 60 * 1000;
+const throttled = ip => { const f = fails.get(ip); return !!f && f.n >= 5 && Date.now() < f.until; };
+function failed(ip) { const f = fails.get(ip) || { n: 0, t: Date.now() }; if (Date.now() - f.t > 10 * 60000) { f.n = 0; f.t = Date.now(); } f.n++; if (f.n >= 5) f.until = Date.now() + LOCK_MS; fails.set(ip, f); }
 function cleanAccount(b, old) {
   const o = Object.assign({}, old);
   if ('name' in b) o.name = clip(b.name, 24).trim() || old.name || 'Gość';
@@ -264,7 +274,7 @@ function onJoin(sock, ip, m, ua) {
   sock.client = c;
   r.members.set(id, Object.assign(mem || { id, joined: Date.now(), host: false, adm: false }, { host: !!(mem && mem.host) || isHost, adm: !!(mem && mem.adm) || isAdmin }));
   syncMember(r, c);
-  if (!c.priv) noteSeen(cid, c.ip, ua, {}, c.name, m.method === 'browser' ? 'browser' : 'server');   // tryb base64: żadnego śladu IP/urządzenia
+  if (!c.priv) noteSeen(cid, c.ip, ua, {}, c.name, m.method === 'browser' ? 'browser' : m.method === 'password' ? 'password' : 'server');   // tryb base64: żadnego śladu IP/urządzenia
   wsSend(sock, JSON.stringify({
     t: 'joined', you: memberView(r, r.members.get(id), c), uploadKey: c.uploadKey, room: roomInfo(r),
     users: usersFor(r, c), history: r.history,
@@ -369,7 +379,7 @@ function handleMsg(c, m) {
       if (/^#[0-9a-f]{6}$/i.test(m.color)) c.color = m.color;
       if ('bio' in m) c.bio = clip(m.bio, 190);
       if (['online', 'idle', 'dnd'].includes(m.status)) c.status = m.status;
-      if (m.method === 'base64' || m.method === 'browser' || m.method === 'server') { c.priv = m.method === 'base64'; if (!c.priv) noteSeen(c.cid, c.ip, c.ua, {}, c.name, m.method); }   // zmiana metody zapisu w trakcie sesji
+      if (m.method === 'base64' || m.method === 'browser' || m.method === 'server' || m.method === 'password') { c.priv = m.method === 'base64'; if (!c.priv) noteSeen(c.cid, c.ip, c.ua, {}, c.name, m.method); }   // zmiana metody zapisu w trakcie sesji
       if ('avatar' in m) {
         const u = clip(m.avatar, 100), med = /^\/media\/[0-9a-f]{32}$/.test(u) && media.get(u.slice(7));
         if (u === '') c.avatar = ''; else if (med && med.room === r.code) c.avatar = u;
@@ -677,6 +687,35 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, Object.assign({ 'content-type': m.type, 'cache-control': 'public, max-age=86400', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; sandbox", 'cross-origin-resource-policy': 'cross-origin' }, CORS));
       return res.end(buf);
     }
+    if (p === '/api/account/password') {   // ustaw / zmień / usuń hasło (konto jest tworzone w tym samym kroku, jeśli jeszcze go nie ma)
+      const secret = String(req.headers['x-account'] || '');
+      if (!/^[\w-]{16,64}$/.test(secret)) return sendJson(res, 400, { error: 'id' });
+      const id = accId(secret), ip = cleanIp(req.socket.remoteAddress), ua = req.headers['user-agent'] || '';
+      if (req.method === 'DELETE') { if (accounts[id]) { delete accounts[id].auth; indexLogins(); saveAccounts(); } return sendJson(res, 200, { ok: true }); }
+      if (req.method === 'POST') {
+        const b = await readJsonBody(req), cur = accounts[id] && accounts[id].auth, login = String(b.login || (cur && cur.login) || '').toLowerCase().trim(), pw = String(b.password || '');
+        if (!/^[a-z0-9_.-]{3,24}$/.test(login)) return sendJson(res, 400, { error: 'Nazwa konta: 3–24 znaki (małe litery, cyfry, kropka, myślnik, podkreślenie).' });
+        if (pw.length < 6 || pw.length > 128) return sendJson(res, 400, { error: 'Hasło musi mieć od 6 do 128 znaków.' });
+        const owner = logins.get(login); if (owner && owner !== id) return sendJson(res, 409, { error: 'Ta nazwa konta jest zajęta.' });
+        if (!accounts[id]) {
+          if (!b.profile || typeof b.profile !== 'object') return sendJson(res, 404, { error: 'Najpierw zapisz profil na serwerze.' });
+          if (Object.keys(accounts).length >= 2000) return sendJson(res, 429, { error: 'Za dużo kont na tej instancji.' });
+          accounts[id] = cleanAccount(b.profile, {}); accounts[id].secret = secret;
+        }
+        const salt = crypto.randomBytes(16); accounts[id].auth = { login, salt: salt.toString('hex'), hash: hashPw(pw, salt).toString('hex') };
+        indexLogins(); noteSeen(secret, ip, ua, deviceHdr(req), accounts[id].name, 'password'); saveAccounts();
+        return sendJson(res, 200, { ok: true, login });
+      }
+    }
+    if (p === '/api/account/login' && req.method === 'POST') {   // logowanie nazwą konta i hasłem na dowolnym urządzeniu → zwraca tożsamość konta
+      const b = await readJsonBody(req), ip = cleanIp(req.socket.remoteAddress), ua = req.headers['user-agent'] || '';
+      if (throttled(ip)) return sendJson(res, 429, { error: 'Za dużo błędnych prób. Spróbuj za kilka minut.' });
+      const login = String(b.login || '').toLowerCase().trim(), id = logins.get(login), a = id && accounts[id] && accounts[id].auth ? accounts[id] : null;
+      const h = hashPw(String(b.password || '').slice(0, 128), a ? Buffer.from(a.auth.salt, 'hex') : DUMMY_SALT);   // ten sam koszt czasowy dla nieistniejącej nazwy
+      if (!a || !crypto.timingSafeEqual(h, Buffer.from(a.auth.hash, 'hex'))) { failed(ip); return sendJson(res, 401, { error: 'Nieprawidłowa nazwa konta lub hasło.' }); }
+      fails.delete(ip); noteSeen(a.secret, ip, ua, deviceHdr(req), a.name, 'password');
+      return sendJson(res, 200, { secret: a.secret });
+    }
     if (p === '/api/account/recognize' && req.method === 'GET') {   // konta „u admina”, które serwer kojarzy z IP odwiedzającego (zastępuje kody konta)
       const ip = cleanIp(req.socket.remoteAddress);
       const found = Object.entries(devices).filter(([id, rec]) => rec.method === 'server' && rec.ips[ip] && accounts[id] && accounts[id].secret)
@@ -692,7 +731,7 @@ const server = http.createServer(async (req, res) => {
       const secret = String(req.headers['x-account'] || '');
       if (!/^[\w-]{16,64}$/.test(secret)) return sendJson(res, 400, { error: 'id' });
       const ip = cleanIp(req.socket.remoteAddress), ua = req.headers['user-agent'] || '';
-      if (req.method === 'POST') { const b = await readJsonBody(req); noteSeen(secret, ip, ua, deviceHdr(req), b.name, b.method === 'browser' ? 'browser' : b.method === 'base64' ? 'base64' : 'server'); }
+      if (req.method === 'POST') { const b = await readJsonBody(req); noteSeen(secret, ip, ua, deviceHdr(req), b.name, b.method === 'browser' ? 'browser' : b.method === 'base64' ? 'base64' : b.method === 'password' ? 'password' : 'server'); }
       const rec = devices[accId(secret)];   // przejrzystość: pokazujemy użytkownikowi dokładnie to, co zapisaliśmy
       return sendJson(res, 200, { ip, device: parseDevice(ua).label, record: rec ? { method: rec.method, first: rec.first, last: rec.last, ips: Object.entries(rec.ips).map(([k, t]) => ({ ip: k, last: t })), devices: Object.values(rec.devices) } : null });
     }
@@ -700,7 +739,7 @@ const server = http.createServer(async (req, res) => {
       const secret = String(req.headers['x-account'] || '');
       if (!/^[\w-]{16,64}$/.test(secret)) return sendJson(res, 400, { error: 'id' });
       const id = accId(secret), ip = cleanIp(req.socket.remoteAddress), ua = req.headers['user-agent'] || '';
-      if (req.method === 'GET') { if (accounts[id]) noteSeen(secret, ip, ua, deviceHdr(req), accounts[id].name, 'server'); const prof = accounts[id] ? Object.assign({}, accounts[id]) : null; if (prof) delete prof.secret; return sendJson(res, 200, { exists: !!accounts[id], profile: prof }); }
+      if (req.method === 'GET') { if (accounts[id]) noteSeen(secret, ip, ua, deviceHdr(req), accounts[id].name, acctMethod(id)); const prof = accounts[id] ? Object.assign({}, accounts[id]) : null; if (prof) { delete prof.secret; prof.login = prof.auth && prof.auth.login; prof.hasPassword = !!prof.auth; delete prof.auth; } return sendJson(res, 200, { exists: !!accounts[id], profile: prof }); }
       if (req.method === 'DELETE') {   // usunięcie profilu z serwera; ?keepLog=1 zostawia tylko wpis IP/urządzenie (przejście na metodę „w przeglądarce”)
         delete accounts[id]; if (!u.searchParams.get('keepLog')) { delete devices[id]; saveDevices(); } saveAccounts();
         return sendJson(res, 200, { ok: true });
@@ -712,7 +751,7 @@ const server = http.createServer(async (req, res) => {
         if (!accounts[id] && Object.keys(accounts).length >= 2000) return sendJson(res, 429, { error: 'Za dużo kont na tej instancji.' });
         accounts[id] = cleanAccount(b && typeof b === 'object' ? b : {}, accounts[id] || {});
         accounts[id].secret = secret;   // potrzebne do „to ja” (rozpoznanie po IP); plik leży tylko na dysku admina
-        noteSeen(secret, ip, ua, deviceHdr(req), accounts[id].name, 'server');
+        noteSeen(secret, ip, ua, deviceHdr(req), accounts[id].name, acctMethod(id));
         saveAccounts();
         return sendJson(res, 200, { ok: true });
       }
