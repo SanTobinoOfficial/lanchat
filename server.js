@@ -7,7 +7,7 @@ const { spawn, execFile } = require('child_process');
 let sea = null;
 try { const s = require('node:sea'); if (s.isSea()) sea = s; } catch {}
 
-const VERSION = '0.3.0';
+const VERSION = '0.3.1';
 const REPO = 'SanTobinoOfficial/lanchat';   // repozytorium z wydaniami (komendy instalacyjne na stronie „Hostuj własny”); podmienia je tools/set-repo.js
 const DISC_PORT = 7778;
 const DATA = path.join(os.homedir(), '.lanchat');

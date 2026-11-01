@@ -12,7 +12,7 @@ const type = async s => { srv.stdin.write(s); await sleep(120); };
 const hasLog = t => frame().includes(t);
 (async () => {
   await sleep(1500);
-  ok(/LanChat 0\.3\.0/.test(frame()) && hasLog('Tab podpowiada komendy') && hasLog('http://localhost:7777'), 'TUI startuje: nagłówek, adresy i wskazówka');
+  ok(/LanChat \d+\.\d+\.\d+/.test(frame()) && hasLog('Tab podpowiada komendy') && hasLog('http://localhost:7777'), 'TUI startuje: nagłówek, adresy i wskazówka');
   // podpowiedzi komend
   await type('cr');
   ok(/^ create\s/m.test(frame()) && /utwórz pokój/.test(frame()), 'wpisanie „cr” podpowiada komendę create z opisem');
