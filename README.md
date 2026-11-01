@@ -43,6 +43,9 @@ Rozłączenie nie wyrzuca z pokoju: osoba przechodzi w **AFK**, po 10 min w **Ni
 ## Uruchomienie z kodu
 `node server.js` (Node ≥ 22) → `http://localhost:7777`. Plik wykonywalny: `node build.js` (wynik w `dist/`). Testy: `node test.js`.
 
+## Konsola admina (terminal)
+Okno, w którym działa LanChat, jest konsolą admina (TUI) – lokalną, bez udziału strony WWW. Wpisz `help`; **Tab** uzupełnia komendy, kody pokoi i nazwy osób, **↑/↓** wybierają podpowiedź lub historię, **PgUp/PgDn** przewijają dziennik. Przykłady: `rooms`, `users`, `kick KOD ala`, `say all Restart za 5 minut`, `banip 192.168.1.20`, `set maxRooms 50`, `chat off` (ukrywa treść wiadomości w dzienniku). `--no-tui` wyłącza konsolę (zwykłe logi).
+
 ## Zapora Windows (ważne)
 Aplikacja nie dotyka zapory. Komputer, na którym działa LanChat, musi przyjmować połączenia przychodzące (TCP 7777, UDP 7778) – przy pierwszym uruchomieniu Windows może pokazać okno „Zezwól na dostęp”. Bez praw administratora nie da się go zatwierdzić; wtedy użyj komputera, na którym to możliwe. Goście łączą się wychodząco i niczego nie potrzebują.
 

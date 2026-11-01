@@ -21,6 +21,7 @@ jobs:
       - run: node test2.js
       - run: node test3.js
       - run: node test4.js
+      - run: node test5.js
 
   build:
     strategy:

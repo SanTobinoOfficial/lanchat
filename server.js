@@ -28,6 +28,7 @@ const rooms = new Map();      // code -> room
 const media = new Map();      // id -> {room, type}  (bajty leżą na dysku w MEDIA_DIR)
 const uploadKeys = new Map(); // key -> client
 let listenPort = settings.port;
+const T = { on: false, lines: [], buf: '', cur: 0, sel: 0, hist: [], hi: null, scroll: 0, chat: true, confirm: null, started: Date.now(), drawing: false };   // stan konsoli admina (TUI)
 
 // ---------- persistence (konta, pokoje, obrazy) ----------
 const MEDIA_DIR = path.join(DATA, 'media');
@@ -89,7 +90,7 @@ const acctMethod = id => accounts[id] && accounts[id].auth ? 'password' : 'serve
 const fails = new Map();    // ip -> { n, t, until } – po 5 błędnych próbach blokada na 5 minut (ochrona przed zgadywaniem)
 const LOCK_MS = +process.env.LANCHAT_LOCK_MS || 5 * 60 * 1000;
 const throttled = ip => { const f = fails.get(ip); return !!f && f.n >= 5 && Date.now() < f.until; };
-function failed(ip) { const f = fails.get(ip) || { n: 0, t: Date.now() }; if (Date.now() - f.t > 10 * 60000) { f.n = 0; f.t = Date.now(); } f.n++; if (f.n >= 5) f.until = Date.now() + LOCK_MS; fails.set(ip, f); }
+function failed(ip) { const f = fails.get(ip) || { n: 0, t: Date.now() }; if (Date.now() - f.t > 10 * 60000) { f.n = 0; f.t = Date.now(); } f.n++; tlog('ochrona', `błędne logowanie hasłem z ${ip} (próba ${f.n}/5)`, A.red); if (f.n >= 5) f.until = Date.now() + LOCK_MS; fails.set(ip, f); }
 function cleanAccount(b, old) {
   const o = Object.assign({}, old);
   if ('name' in b) o.name = clip(b.name, 24).trim() || old.name || 'Gość';
@@ -189,10 +190,12 @@ function createRoom({ name, password, isPublic }) {
     joinLock: false, maxUsers: 0, mediaTypes: {}, hashes: {},
   };
   rooms.set(code, r);
+  tlog('pokój', `utworzono ${r.name} (${r.code})${r.isPublic ? ' publiczny' : ''}${r.password ? ' z hasłem' : ''}`, A.mag);
   scheduleSave();
   return r;
 }
 function closeRoom(r, reason) {
+  tlog('pokój', `zamknięto ${r.name} (${r.code})`, A.mag);
   broadcast(r, { t: 'closed', reason: reason || 'Pokój został zamknięty' });
   rooms.delete(r.code);
   for (const c of r.clients.values()) { try { c.sock.end(); } catch {} }
@@ -280,12 +283,14 @@ function onJoin(sock, ip, m, ua) {
     users: usersFor(r, c), history: r.history,
   }));
   sendUsers(r);
+  tlog('join', `${c.name} → ${r.name} (${r.code})${mem ? '' : ' NOWY'}${isAdmin ? ' [admin]' : ''}  ${c.priv ? 'IP ukryte (base64)' : c.ip + ' · ' + parseDevice(ua).label}`, A.grn);
   if (!mem) sys(r, `${c.name} dołączył(a)`);   // ogłaszamy tylko nowych członków – powrót po rozłączeniu nie jest „dołączeniem”
 }
 function onLeave(c) {   // rozłączenie ≠ opuszczenie pokoju: członek zostaje, zmienia się tylko obecność
   const r = c.room;
   uploadKeys.delete(c.uploadKey);
   if (r.clients.get(c.id) === c) {
+    tlog('leave', `${c.name} ← ${r.name} (${r.code})`, A.yel);
     r.clients.delete(c.id);
     const mem = r.members.get(c.id); if (mem) { syncMember(r, c); mem.seen = Date.now(); }
     sendUsers(r);
@@ -353,6 +358,7 @@ function post(c, m) {
     const q = r.history.find(x => x.id === m.reply);
     if (q && q.kind !== 'sys') msg.reply = { id: q.id, name: q.name, text: clip(q.text || (q.kind === 'text' ? '' : '[' + q.kind + ']'), 90) };
   }
+  if (T.chat) tlog('msg', `[${r.name}] ${c.name}: ${msg.text || '[' + msg.kind + ']'}`, '');
   c.stamps.push(now); c.lastMsg = now;
   msg.reactions = {};
   r.history.push(msg); if (r.history.length > 500) r.history.shift();
@@ -921,6 +927,302 @@ function setAutostart(on) {
   });
 }
 
+// ---------- konsola admina (TUI) – lokalny terminal tego procesu, niezależny od strony WWW ----------
+// Uruchamia się, gdy serwer ma prawdziwy terminal (lub LANCHAT_TUI=force); wyłączenie: --no-tui. Podpowiada komendy (Tab / strzałki).
+const A = { r: '\x1b[0m', b: '\x1b[1m', d: '\x1b[2m', inv: '\x1b[7m', red: '\x1b[31m', grn: '\x1b[32m', yel: '\x1b[33m', blu: '\x1b[34m', mag: '\x1b[35m', cyn: '\x1b[36m', gry: '\x1b[90m' };
+const stripAnsi = s => String(s).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+const vlen = s => [...stripAnsi(s)].length;
+const cut = (s, n) => { const a = [...String(s)]; return a.length > n ? a.slice(0, Math.max(0, n - 1)).join('') + '…' : a.join(''); };
+const pad = (s, n) => { s = cut(s, n); return s + ' '.repeat(Math.max(0, n - vlen(s))); };
+const hhmmss = t => new Date(t || Date.now()).toTimeString().slice(0, 8);
+const ago = ms => { const s = Math.max(0, Math.round(ms / 1000)); return s < 90 ? s + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : s < 172800 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + ' d'; };
+
+function tuiWanted() {
+  if (process.argv.includes('--no-tui') || process.env.LANCHAT_TUI === 'off') return false;
+  return process.env.LANCHAT_TUI === 'force' || !!(process.stdin.isTTY && process.stdout.isTTY);
+}
+function tlog(tag, text, color) {   // wpis do dziennika konsoli (gdy TUI nie działa – zwykły console.log)
+  if (!T.on) return;
+  T.lines.push({ t: Date.now(), tag, text: String(text), color: color || A.gry });
+  if (T.lines.length > 1500) T.lines.splice(0, 300);
+  tuiDraw();
+}
+const out = (t, c) => { for (const l of String(t).split('\n')) T.lines.push({ t: Date.now(), tag: '', text: l, color: c || '' }); tuiDraw(); };
+const okm = t => out('✔ ' + t, A.grn), errm = t => out('✖ ' + t, A.red), info = t => out(t, A.cyn);
+function table(head, rows) {
+  const w = head.map((h, i) => Math.max(vlen(h), ...rows.map(r => vlen(String(r[i] == null ? '' : r[i])))));
+  const line = r => r.map((c, i) => pad(String(c == null ? '' : c), Math.min(w[i], 40))).join('  ');
+  out(line(head), A.b); for (const r of rows) out(line(r));
+  if (!rows.length) out('  (brak)', A.gry);
+}
+
+// --- wyszukiwanie ---
+const tokenize = s => { const re = /"([^"]*)"|(\S+)/g, o = []; let m; while ((m = re.exec(s))) o.push({ v: m[1] != null ? m[1] : m[2], s: m.index, e: re.lastIndex }); return o; };
+const quote = v => /\s/.test(v) ? '"' + v + '"' : v;
+function findRoom(q) {
+  q = String(q || '').trim(); if (!q) return null;
+  const up = normCode(q), l = q.toLowerCase(), all = [...rooms.values()];
+  return rooms.get(up) || all.find(r => r.name.toLowerCase() === l) || all.find(r => r.name.toLowerCase().startsWith(l)) || all.find(r => r.code.startsWith(up)) || null;
+}
+function findUser(r, q) {
+  q = String(q || '').trim().toLowerCase(); if (!q) return null;
+  const ms = [...r.members.values()];
+  return ms.find(m => m.id === q) || ms.find(m => m.name.toLowerCase() === q) || ms.find(m => m.id.startsWith(q)) || ms.find(m => m.name.toLowerCase().startsWith(q)) || ms.find(m => m.name.toLowerCase().includes(q)) || null;
+}
+const roomUpd = r => { broadcast(r, { t: 'room', room: roomInfo(r) }); scheduleSave(); };
+const SETKEYS = { hostName: 'text', maxRooms: 'num', maxUsersPerRoom: 'num', uploadLimitMB: 'num', openBrowser: 'bool', allowLanHosting: 'bool', serveInstaller: 'bool', giphyKey: 'text', port: 'num' };
+
+// --- komendy ---
+// args: room|user|onoff|num|text|rest|cmd|setting|ip|banid|pub|all
+const CMDS = [];
+const def = (group, name, args, desc, fn) => CMDS.push({ group, name, args, desc, fn, usage: name + args.map(a => ' ' + (a[0] === '?' ? '[' + a.slice(1) + ']' : '<' + a + '>')).join('') });
+const needRoom = (a, f) => { const r = findRoom(a[0]); if (!r) return errm('Nie znaleziono pokoju: ' + (a[0] || '?') + '  (zobacz: rooms)'); return f(r); };
+const needUser = (a, f) => needRoom(a, r => { const m = findUser(r, a[1]); if (!m) return errm('Nie znaleziono osoby w pokoju ' + r.name + ': ' + (a[1] || '?')); return f(r, m); });
+const mark = r => (r.password ? '🔒' : '') + (r.isPublic ? '🌐' : '') + (r.joinLock ? '⛔' : '');
+const online = () => { let n = 0; for (const r of rooms.values()) n += r.clients.size; return n; };
+
+def('Ogólne', 'help', ['?komenda'], 'lista komend albo opis jednej', a => {
+  if (a[0]) { const c = CMDS.find(x => x.name === a[0]); return c ? (out(c.usage, A.b), out('  ' + c.desc)) : errm('Nie ma takiej komendy: ' + a[0]); }
+  out('Wpisz komendę – Tab uzupełnia, ↑/↓ wybierają podpowiedź (lub historię), PgUp/PgDn przewijają dziennik, Esc czyści.', A.gry);
+  let g = ''; for (const c of CMDS) { if (c.group !== g) { g = c.group; out(''); out(g, A.yel + A.b); } out('  ' + pad(c.usage, 34) + c.desc); }
+});
+def('Ogólne', 'status', [], 'stan serwera, liczby, pamięć, adresy', () => {
+  let msgs = 0, mb = 0, mem = 0; for (const r of rooms.values()) { msgs += r.history.length; mb += r.mediaBytes; mem += r.members.size; }
+  const rows = [['Wersja', VERSION + ' (node ' + process.versions.node + ')'], ['Działa od', ago(Date.now() - T.started)], ['Port', listenPort], ['Pokoje', rooms.size + '  (limit ' + settings.maxRooms + ')'], ['Online teraz', online()], ['Członków łącznie', mem], ['Wiadomości w pamięci', msgs], ['Obrazy', (mb / 1048576).toFixed(1) + ' MB'], ['Konta / urządzenia', Object.keys(accounts).length + ' / ' + Object.keys(devices).length], ['Zbanowane IP', settings.bannedIps.length], ['Pamięć procesu', Math.round(process.memoryUsage().rss / 1048576) + ' MB'], ['Dane', DATA]];
+  for (const [k, v] of rows) out(pad(k, 22) + v);
+});
+def('Ogólne', 'url', [], 'adresy do wejścia (Ty i goście w LAN)', () => { out('Ty (to urządzenie):  http://localhost:' + listenPort, A.grn); for (const i of lanIps()) out('Goście w LAN:         http://' + i.address + ':' + listenPort, A.grn); });
+def('Ogólne', 'open', [], 'otwórz stronę admina w przeglądarce', () => { openBrowser('http://localhost:' + listenPort); okm('Otwieram przeglądarkę'); });
+def('Ogólne', 'save', [], 'zapisz teraz pokoje, konta i urządzenia na dysk', () => { flush(); okm('Zapisano w ' + DATA); });
+def('Ogólne', 'clear', [], 'wyczyść widok dziennika', () => { T.lines = []; T.scroll = 0; });
+def('Ogólne', 'chat', ['onoff'], 'pokazuj treść wiadomości z pokoi w dzienniku', a => { if (!['on', 'off'].includes(a[0])) return info('Treść wiadomości w dzienniku: ' + (T.chat ? 'włączona' : 'wyłączona')); T.chat = a[0] === 'on'; okm('Treść wiadomości w dzienniku: ' + a[0]); });
+def('Ogólne', 'quit', [], 'zapisz i zamknij serwer', () => { out('Zamykam serwer…', A.yel); setTimeout(() => process.exit(0), 100); });
+
+def('Pokoje', 'rooms', [], 'lista pokoi', () => table(['KOD', 'NAZWA', 'ONLINE', 'CZŁONKÓW', 'WIADOMOŚCI', 'OBRAZY', 'UTWORZONY', ''], [...rooms.values()].map(r => [r.code, r.name, r.clients.size, r.members.size, r.history.length, (r.mediaBytes / 1048576).toFixed(1) + ' MB', ago(Date.now() - r.created) + ' temu', mark(r)])));
+def('Pokoje', 'room', ['room'], 'szczegóły pokoju', a => needRoom(a, r => {
+  const rows = [['Kod', r.code], ['Nazwa', r.name], ['Temat', r.topic || '(brak)'], ['Hasło', r.password ? 'tak' : 'nie'], ['Publiczny', r.isPublic ? 'tak' : 'nie'], ['Blokada dołączania', r.joinLock ? 'tak' : 'nie'], ['Limit osób', r.maxUsers || 'wg ustawień (' + settings.maxUsersPerRoom + ')'], ['Tryb powolny', r.slow ? r.slow + ' s' : 'wyłączony'], ['Online / członków', r.clients.size + ' / ' + r.members.size], ['Moderatorzy', r.mods.size], ['Bany / wyciszeni', r.bans.size + ' / ' + r.muted.size], ['Wiadomości', r.history.length], ['Naklejki', r.stickers.length], ['Obrazy', (r.mediaBytes / 1048576).toFixed(1) + ' MB'], ['Utworzony', new Date(r.created).toLocaleString()]];
+  for (const [k, v] of rows) out(pad(k, 22) + v);
+}));
+def('Pokoje', 'create', ['name', '?public|private', '?hasło'], 'utwórz pokój (admin jest jego właścicielem)', a => {
+  if (!a[0]) return errm('Podaj nazwę, np. create "Gramy" public');
+  if (rooms.size >= settings.maxRooms) return errm('Limit pokoi: ' + settings.maxRooms + ' (zmień: set maxRooms 50)');
+  const pub = a[1] === 'public'; const r = createRoom({ name: a[0], password: a[1] && a[1] !== 'public' && a[1] !== 'private' ? a[1] : a[2] || '', isPublic: pub });
+  okm('Pokój ' + r.name + ' – kod ' + r.code + (r.password ? ' (z hasłem)' : '') + (pub ? ' (publiczny)' : ''));
+});
+def('Pokoje', 'close', ['room'], 'zamknij pokój i usuń jego obrazy', a => needRoom(a, r => confirmAsk('Zamknąć pokój ' + r.name + ' (' + r.code + ') na stałe?', () => { closeRoom(r, 'Pokój zamknięty przez admina'); okm('Pokój zamknięty'); })));
+def('Pokoje', 'rename', ['room', 'rest'], 'zmień nazwę pokoju', (a, raw) => needRoom(a, r => { const n = clip(raw(1), 40).trim(); if (!n) return errm('Podaj nową nazwę'); r.name = n; roomUpd(r); okm('Nowa nazwa: ' + n); }));
+def('Pokoje', 'topic', ['room', 'rest'], 'ustaw temat pokoju (pusty = usuń)', (a, raw) => needRoom(a, r => { r.topic = clip(raw(1), 140); roomUpd(r); sys(r, 'Temat: ' + (r.topic || '(brak)')); okm('Temat ustawiony'); }));
+def('Pokoje', 'slow', ['room', 'num'], 'tryb powolny w sekundach (0 = wyłącz)', a => needRoom(a, r => { r.slow = Math.max(0, Math.min(300, parseInt(a[1], 10) || 0)); roomUpd(r); okm('Tryb powolny: ' + (r.slow ? r.slow + ' s' : 'wyłączony')); }));
+def('Pokoje', 'lock', ['room', 'onoff'], 'blokada dołączania nowych osób', a => needRoom(a, r => { r.joinLock = a[1] !== 'off'; roomUpd(r); okm('Blokada dołączania: ' + (r.joinLock ? 'włączona' : 'wyłączona')); }));
+def('Pokoje', 'limit', ['room', 'num'], 'limit osób w pokoju (0 = wg ustawień)', a => needRoom(a, r => { r.maxUsers = Math.max(0, Math.min(500, parseInt(a[1], 10) || 0)); roomUpd(r); okm('Limit: ' + (r.maxUsers || 'wg ustawień')); }));
+def('Pokoje', 'public', ['room', 'onoff'], 'pokój widoczny w „Odkrywaj”', a => needRoom(a, r => { r.isPublic = a[1] !== 'off'; roomUpd(r); okm('Publiczny: ' + (r.isPublic ? 'tak' : 'nie')); }));
+def('Pokoje', 'password', ['room', 'hasło|none'], 'ustaw lub usuń hasło pokoju', a => needRoom(a, r => { r.password = !a[1] || a[1] === 'none' ? '' : clip(a[1], 64); roomUpd(r); okm(r.password ? 'Hasło ustawione' : 'Hasło usunięte'); }));
+def('Pokoje', 'say', ['all', 'rest'], 'ogłoszenie systemowe w pokoju (lub w „all” = wszystkich)', (a, raw) => {
+  const text = clip(raw(1), 400).trim(); if (!text) return errm('Podaj treść, np. say all Restart za 5 minut');
+  const list = a[0] === 'all' ? [...rooms.values()] : [findRoom(a[0])].filter(Boolean); if (!list.length) return errm('Nie znaleziono pokoju: ' + a[0]);
+  for (const r of list) sys(r, '📢 ' + text); okm('Wysłano do pokoi: ' + list.length);
+});
+def('Pokoje', 'history', ['room', '?ile'], 'ostatnie wiadomości pokoju', a => needRoom(a, r => { for (const m of r.history.slice(-(Math.min(100, parseInt(a[1], 10) || 15)))) out(hhmmss(m.ts) + ' ' + (m.kind === 'sys' ? '· ' + m.text : m.name + ': ' + (m.text || '[' + m.kind + ']')), m.kind === 'sys' ? A.gry : ''); }));
+def('Pokoje', 'clearchat', ['room'], 'wyczyść historię czatu pokoju', a => needRoom(a, r => confirmAsk('Wyczyścić historię pokoju ' + r.name + '?', () => { r.history = []; broadcast(r, { t: 'cleared' }); sys(r, 'Historia czatu została wyczyszczona'); okm('Wyczyszczono'); })));
+def('Pokoje', 'export', ['room'], 'zapisz historię pokoju do pliku tekstowego', a => needRoom(a, r => { const f = path.join(DATA, 'export-' + r.code + '.txt'); fs.writeFileSync(f, r.history.map(m => new Date(m.ts).toLocaleString() + ' ' + (m.kind === 'sys' ? '* ' + m.text : m.name + ': ' + (m.text || '[' + m.kind + '] ' + (m.url || '')))).join('\n')); okm('Zapisano: ' + f); }));
+
+def('Osoby', 'users', ['?room'], 'kto jest teraz połączony (z IP i urządzeniem)', a => {
+  const list = a[0] ? [findRoom(a[0])].filter(Boolean) : [...rooms.values()]; const rows = [];
+  for (const r of list) for (const c of r.clients.values()) rows.push([r.code, c.name, c.id, c.status, realRole(r, c.id), c.priv ? '(base64 – brak)' : c.ip, c.priv ? '' : parseDevice(c.ua).label]);
+  table(['POKÓJ', 'NAZWA', 'ID', 'STATUS', 'ROLA', 'IP', 'URZĄDZENIE'], rows);
+});
+def('Osoby', 'members', ['room'], 'wszyscy członkowie pokoju (także AFK i niedostępni)', a => needRoom(a, r => table(['NAZWA', 'ID', 'OBECNOŚĆ', 'ROLA', 'WYCISZONY', 'OSTATNIO'], [...r.members.values()].map(m => [m.name, m.id, presenceOf(r, m), realRole(r, m.id), r.muted.has(m.id) ? 'tak' : '', r.clients.has(m.id) ? 'teraz' : ago(Date.now() - m.seen) + ' temu']))));
+def('Osoby', 'who', ['rest'], 'znajdź osobę po nazwie: pokoje, IP, urządzenia', (a, raw) => {
+  const q = raw(0).trim().toLowerCase(); if (!q) return errm('Podaj nazwę'); let n = 0;
+  for (const r of rooms.values()) for (const m of r.members.values()) if (m.name.toLowerCase().includes(q) || m.id === q) { n++; const c = r.clients.get(m.id); out(pad(m.name, 20) + pad(r.name + ' (' + r.code + ')', 28) + pad(presenceOf(r, m), 9) + pad(realRole(r, m.id), 7) + (c ? (c.priv ? 'IP: ukryte (base64)' : c.ip) : '')); }
+  for (const d of Object.values(devices)) if ((d.name || '').toLowerCase().includes(q)) { n++; out('  rejestr: ' + d.name + ' · metoda ' + d.method + ' · IP ' + Object.keys(d.ips).join(', ') + ' · ' + Object.values(d.devices).map(v => v.label).join(' | '), A.gry); }
+  if (!n) errm('Nikogo nie znaleziono: ' + q);
+});
+def('Osoby', 'people', ['?ile'], 'rejestr osób: metoda zapisu, IP, urządzenia', a => table(['NAZWA', 'METODA', 'OSTATNIO', 'IP', 'URZĄDZENIA'], Object.values(devices).sort((x, y) => y.last - x.last).slice(0, Math.min(200, parseInt(a[0], 10) || 25)).map(d => [d.name, d.method, ago(Date.now() - d.last) + ' temu', Object.keys(d.ips).join(', '), Object.values(d.devices).map(v => v.label).join(' | ')])));
+def('Osoby', 'accounts', [], 'liczba kont i kont z hasłem', () => { const all = Object.values(accounts); out('Konta na serwerze: ' + all.length + '   z hasłem: ' + all.filter(x => x.auth).length); });
+
+const MODACTS = { kick: 'wyrzuć osobę z pokoju', ban: 'zbanuj osobę w pokoju', mute: 'wycisz osobę', unmute: 'zdejmij wyciszenie', mod: 'nadaj rolę moderatora', unmod: 'odbierz rolę moderatora' };
+for (const [name, desc] of Object.entries(MODACTS)) def('Moderacja', name, ['room', 'user'], desc, a => needUser(a, (r, m) => {
+  const t = r.clients.get(m.id);
+  if (name === 'kick' || name === 'ban') {
+    if (name === 'ban') { r.bans.add(m.id); r.banNames[m.id] = m.name; }
+    r.members.delete(m.id); r.mods.delete(m.id);
+    if (t) { wsSend(t.sock, JSON.stringify({ t: 'closed', reason: name === 'ban' ? 'Zostałeś(-aś) zbanowany(-a)' : 'Zostałeś(-aś) wyrzucony(-a)' })); try { t.sock.end(); } catch {} }
+    sendUsers(r); sys(r, m.name + (name === 'ban' ? ' został(a) zbanowany(-a)' : ' został(a) wyrzucony(-a)') + ' przez moderatora');
+  } else if (name === 'mute') r.muted.add(m.id); else if (name === 'unmute') r.muted.delete(m.id); else if (name === 'mod') r.mods.add(m.id); else r.mods.delete(m.id);
+  sendUsers(r); scheduleSave(); okm(name + ': ' + m.name + ' w ' + r.name);
+}));
+def('Moderacja', 'bans', ['room'], 'lista banów w pokoju', a => needRoom(a, r => table(['ID', 'NAZWA'], [...r.bans].map(id => [id, r.banNames[id] || '?']))));
+def('Moderacja', 'unban', ['room', 'banid'], 'zdejmij bana w pokoju (id lub nazwa)', a => needRoom(a, r => { const k = [...r.bans].find(id => id === a[1] || (r.banNames[id] || '').toLowerCase() === String(a[1] || '').toLowerCase()); if (!k) return errm('Nie ma takiego bana (zobacz: bans)'); r.bans.delete(k); delete r.banNames[k]; scheduleSave(); okm('Odbanowano ' + (r.banNames[k] || k)); }));
+def('Moderacja', 'banip', ['ip'], 'zablokuj adres IP na całym serwerze i rozłącz go', a => {
+  const ip = cleanIp(a[0]); if (!ip) return errm('Podaj IP'); if (isLoopIp(ip) || ownIps().has(ip)) return errm('Nie banuję adresu tego komputera');
+  if (!settings.bannedIps.includes(ip)) settings.bannedIps.push(ip); saveSettings(); let n = 0;
+  for (const r of rooms.values()) for (const c of r.clients.values()) if (c.ip === ip) { n++; wsSend(c.sock, JSON.stringify({ t: 'closed', reason: 'Zbanowany(-a) przez admina' })); try { c.sock.end(); } catch {} }
+  okm('Zbanowano ' + ip + ' (rozłączono: ' + n + ')');
+});
+def('Moderacja', 'unbanip', ['ip'], 'odblokuj adres IP', a => { settings.bannedIps = settings.bannedIps.filter(x => x !== cleanIp(a[0])); saveSettings(); okm('Odblokowano ' + a[0]); });
+def('Moderacja', 'ips', [], 'zbanowane adresy IP', () => out(settings.bannedIps.length ? settings.bannedIps.join('\n') : '(brak)', A.gry));
+def('Moderacja', 'kickip', ['ip'], 'rozłącz wszystkie połączenia z IP (bez bana)', a => { let n = 0; for (const r of rooms.values()) for (const c of r.clients.values()) if (c.ip === cleanIp(a[0])) { n++; wsSend(c.sock, JSON.stringify({ t: 'closed', reason: 'Rozłączono przez admina' })); try { c.sock.end(); } catch {} } okm('Rozłączono połączeń: ' + n); });
+
+def('Serwer', 'settings', [], 'aktualne ustawienia serwera', () => { for (const k of Object.keys(SETKEYS)) out(pad(k, 18) + (k === 'giphyKey' ? (settings[k] ? '••••' + settings[k].slice(-4) : '(brak)') : settings[k])); });
+def('Serwer', 'set', ['setting', 'rest'], 'zmień ustawienie, np. set maxRooms 50', (a, raw) => {
+  const k = a[0]; if (!SETKEYS[k]) return errm('Nieznane ustawienie. Dostępne: ' + Object.keys(SETKEYS).join(', ')); const v = raw(1).trim();
+  if (SETKEYS[k] === 'num') { const n = parseInt(v, 10); if (!(n >= 1)) return errm('Podaj liczbę ≥ 1'); settings[k] = n; }
+  else if (SETKEYS[k] === 'bool') settings[k] = ['on', 'true', 'tak', '1'].includes(v.toLowerCase()); else settings[k] = clip(v, k === 'giphyKey' ? 80 : 40);
+  saveSettings(); okm(k + ' = ' + (k === 'giphyKey' ? '(zapisano)' : settings[k]) + (k === 'port' ? '  – zadziała po restarcie' : ''));
+});
+def('Serwer', 'autostart', ['?onoff'], 'uruchamianie razem z Windows (bez UAC)', async a => {
+  if (!autostartSupported()) return errm('Autostart działa tylko w spakowanym exe na Windows');
+  if (!a[0]) return info('Autostart: ' + (fs.existsSync(STARTUP_LNK) ? 'włączony' : 'wyłączony'));
+  const ok = await setAutostart(a[0] !== 'off'); ok ? okm('Autostart: ' + (a[0] !== 'off' ? 'włączony' : 'wyłączony')) : errm('Nie udało się zmienić autostartu');
+});
+def('Serwer', 'afk', [], 'po ilu minutach rozłączona osoba staje się „niedostępna”', () => out('AFK → niedostępny po ' + Math.round(AFK_MS / 60000) + ' min (zmienna LANCHAT_AFK_MS)'));
+def('Serwer', 'gif', ['rest'], 'test wyszukiwarki GIF-ów', async (a, raw) => { const r = await gifSearch(raw(0).trim() || 'cat').catch(e => ({ error: e.message })); const list = r.results || r.gifs || r; out('Wynik: ' + (Array.isArray(list) ? list.length + ' GIF-ów' : JSON.stringify(r).slice(0, 200)) + (r.source ? ' (źródło: ' + r.source + ')' : '')); });
+
+// --- podpowiedzi ---
+function candidates(type, tokens, idx) {
+  const pick = (i) => (tokens[i] ? findRoom(tokens[i].v) : null);
+  switch (type) {
+    case 'room': case 'all': { const l = [...rooms.values()].map(r => ({ v: r.code, d: r.name + ' · ' + r.clients.size + ' online' })); return type === 'all' ? [{ v: 'all', d: 'wszystkie pokoje' }, ...l] : l; }
+    case 'user': { const r = pick(1); return r ? [...r.members.values()].map(m => ({ v: quote(m.name), d: m.id + ' · ' + presenceOf(r, m) })) : []; }
+    case 'banid': { const r = pick(1); return r ? [...r.bans].map(id => ({ v: id, d: r.banNames[id] || '' })) : []; }
+    case 'onoff': return [{ v: 'on', d: 'włącz' }, { v: 'off', d: 'wyłącz' }];
+    case 'public|private': return [{ v: 'public', d: 'widoczny w „Odkrywaj”' }, { v: 'private', d: 'tylko z kodem' }];
+    case 'hasło|none': return [{ v: 'none', d: 'usuń hasło' }];
+    case 'setting': return Object.keys(SETKEYS).map(k => ({ v: k, d: SETKEYS[k] === 'bool' ? 'on/off' : SETKEYS[k] === 'num' ? 'liczba' : 'tekst' }));
+    case 'ip': { const s = new Map(); for (const ip of settings.bannedIps) s.set(ip, 'zbanowany'); for (const r of rooms.values()) for (const c of r.clients.values()) if (!c.priv && !s.has(c.ip)) s.set(c.ip, c.name); return [...s].map(([v, d]) => ({ v, d })); }
+    case 'komenda': return CMDS.map(c => ({ v: c.name, d: c.desc }));
+    default: return [];
+  }
+}
+function suggestions() {
+  const before = T.buf.slice(0, T.cur); if (!before.trim()) return { list: [], idx: 0, cur: '', hint: null, c: null, toks: [], endSp: true };
+  const toks = tokenize(before), endSp = /\s$/.test(before) || !before;
+  const idx = endSp ? toks.length : toks.length - 1, cur = endSp ? '' : toks[toks.length - 1].v;
+  let list, hint = null, c = null;
+  if (idx === 0) list = CMDS.map(x => ({ v: x.name, d: x.desc }));
+  else {
+    c = CMDS.find(x => x.name === toks[0].v); if (!c) return { list: [], sel: 0, idx, cur, hint: null, c };
+    const type = c.args[Math.min(idx - 1, c.args.length - 1)]; hint = c.args[idx - 1] ? idx - 1 : -1;
+    list = type ? candidates(type[0] === '?' ? type.slice(1) : type, toks, idx) : [];
+  }
+  const l = cur.toLowerCase(); const strip = s => s.replace(/^"/, '').toLowerCase();
+  const starts = list.filter(x => strip(x.v).startsWith(l)), inc = list.filter(x => !strip(x.v).startsWith(l) && (strip(x.v).includes(l) || (x.d || '').toLowerCase().includes(l)));
+  list = l ? [...starts, ...inc] : list;
+  if (list.length === 1 && strip(list[0].v) === l) list = [];
+  return { list, idx, cur, hint, c, toks, endSp };
+}
+function applySuggestion(s) {
+  if (!s.list.length) return false; const it = s.list[T.sel % s.list.length], before = T.buf.slice(0, T.cur), after = T.buf.slice(T.cur);
+  const start = s.endSp ? before.length : s.toks[s.toks.length - 1].s;
+  T.buf = before.slice(0, start) + it.v + ' ' + after.replace(/^\S*/, '').replace(/^\s+/, ''); T.cur = start + it.v.length + 1; T.sel = 0; return true;
+}
+
+// --- wykonywanie ---
+function confirmAsk(q, fn) { T.confirm = fn; out('? ' + q + '  Wpisz „tak”, aby potwierdzić.', A.yel); }
+async function runLine(line) {
+  line = line.trim(); if (!line) return;
+  if (T.confirm) { const f = T.confirm; T.confirm = null; if (/^(t|tak|y|yes)$/i.test(line)) return f(); return info('Anulowano.'); }
+  const toks = tokenize(line), c = CMDS.find(x => x.name === toks[0].v.toLowerCase());
+  if (!c) { const m = CMDS.filter(x => x.name.startsWith(toks[0].v.toLowerCase())); return errm('Nieznana komenda: ' + toks[0].v + (m.length ? '  – może: ' + m.slice(0, 5).map(x => x.name).join(', ') : '  – wpisz help')); }
+  const a = toks.slice(1).map(t => t.v), raw = i => (toks[i + 1] ? line.slice(toks[i + 1].s) : '');
+  try { await c.fn(a, raw); } catch (e) { errm('Błąd komendy: ' + e.message); }
+}
+
+// --- rysowanie i klawiatura ---
+function tuiDraw() {
+  if (!T.on || T.drawing) return; T.drawing = true; setImmediate(() => { T.drawing = false; tuiRender(); });
+}
+function tuiRender() {
+  if (!T.on) return;
+  const W = process.stdout.columns || 100, H = process.stdout.rows || 30, S = suggestions(), nS = Math.min(6, S.list.length);
+  if (T.sel >= S.list.length) T.sel = 0;
+  const logH = Math.max(1, H - 2 - nS - 1), rows = [];
+  rows.push(A.inv + pad(` LanChat ${VERSION}  │  http://localhost:${listenPort}  │  pokoje ${rooms.size}  │  online ${online()}  │  czat ${T.chat ? 'on' : 'off'}  │  F: help`, W) + A.r);
+  const wrapped = [];
+  for (const e of T.lines.slice(-400)) {
+    const pre = e.tag || e.t ? `${A.gry}${hhmmss(e.t)} ${A.r}${e.color}${pad(e.tag, 5)}${A.r} ` : '', pw = 15, body = [...e.text];
+    const width = Math.max(10, W - pw - 1); let first = true;
+    do { const seg = body.splice(0, width).join(''); wrapped.push((first ? (e.tag ? pre : ' '.repeat(pw)) : ' '.repeat(pw)) + e.color + seg + A.r); first = false; } while (body.length);
+  }
+  const maxScroll = Math.max(0, wrapped.length - logH); T.scroll = Math.min(T.scroll, maxScroll);
+  const view = wrapped.slice(Math.max(0, wrapped.length - logH - T.scroll), wrapped.length - T.scroll);
+  for (let i = 0; i < logH - view.length; i++) rows.push('');
+  rows.push(...view);
+  if (T.scroll) rows[rows.length - 1] = A.yel + pad(`  ↑ przewinięto o ${T.scroll} linii (PgDn – wróć)`, W) + A.r;
+  const off = Math.max(0, S.list.length > 6 ? Math.min(T.sel - 3, S.list.length - 6) : 0), shown = S.list.slice(Math.max(0, off), Math.max(0, off) + 6);
+  shown.forEach((it, i) => { const on = (Math.max(0, off) + i) === T.sel; rows.push((on ? A.inv : '') + ' ' + pad(it.v, 22) + A.r + (on ? '' : '') + A.gry + ' ' + cut(it.d || '', W - 26) + A.r); });
+  let hint = '';
+  if (T.confirm) hint = A.yel + ' Potwierdź: tak / nie' + A.r;
+  else if (S.c) hint = A.d + ' ' + S.c.name + S.c.args.map((x, i) => ' ' + (i === S.hint ? A.r + A.b + A.cyn : A.d) + (x[0] === '?' ? '[' + x.slice(1) + ']' : '<' + x + '>') + A.r + A.d).join('') + '  – ' + S.c.desc + A.r;
+  else hint = A.d + ' Tab – uzupełnij · ↑↓ – wybór/historia · PgUp/PgDn – przewijanie · help – lista komend' + A.r;
+  rows.push(cut2(hint, W));
+  const pw2 = 2, room = W - pw2 - 1, st = Math.max(0, T.cur - room + 8), shownBuf = [...T.buf.slice(st)].slice(0, room).join('');
+  rows.push(A.grn + A.b + '› ' + A.r + shownBuf);
+  const col = pw2 + 1 + vlen(T.buf.slice(st, T.cur));
+  process.stdout.write('\x1b[?25l\x1b[H' + rows.slice(0, H).map(l => l + '\x1b[K').join('\r\n') + `\x1b[${rows.length};${col}H\x1b[?25h`);
+}
+const cut2 = (s, W) => { let n = 0, o = ''; for (let i = 0; i < s.length; i++) { if (s[i] === '\x1b') { const m = /^\x1b\[[0-9;]*m/.exec(s.slice(i)); if (m) { o += m[0]; i += m[0].length - 1; continue; } } if (n >= W - 1) break; o += s[i]; n++; } return o + A.r; };
+
+function tuiKey(s) {
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '\x1b') {
+      if (s[i + 1] === '[') { let j = i + 2; while (j < s.length && !/[@-~]/.test(s[j])) j++; tuiSeq(s.slice(i + 2, j + 1)); i = j; }
+      else if (s[i + 1] === 'O') { tuiSeq(s[i + 2] === 'H' ? 'H' : s[i + 2] === 'F' ? 'F' : s[i + 2] === 'P' ? '11~' : ''); i += 2; }
+      else { T.buf = ''; T.cur = 0; T.sel = 0; T.confirm = null; }
+      continue;
+    }
+    const code = ch.codePointAt(0);
+    if (ch === '\r') { if (s[i + 1] === '\n') i++; tuiSubmit(); }
+    else if (ch === '\n') tuiSubmit();
+    else if (ch === '\x03') process.exit(0);
+    else if (ch === '\t') { const sg = suggestions(); if (sg.list.length) applySuggestion(sg); }
+    else if (ch === '\x7f' || ch === '\b') { if (T.cur > 0) { T.buf = T.buf.slice(0, T.cur - 1) + T.buf.slice(T.cur); T.cur--; T.sel = 0; } }
+    else if (ch === '\x15') { T.buf = T.buf.slice(T.cur); T.cur = 0; T.sel = 0; }
+    else if (ch === '\x0b') T.buf = T.buf.slice(0, T.cur);
+    else if (ch === '\x17') { const b = T.buf.slice(0, T.cur).replace(/\S*\s*$/, ''); T.buf = b + T.buf.slice(T.cur); T.cur = b.length; T.sel = 0; }
+    else if (ch === '\x01') T.cur = 0; else if (ch === '\x05') T.cur = T.buf.length;
+    else if (ch === '\x0c') { T.lines = []; T.scroll = 0; }
+    else if (ch === '\x10') tuiHist(-1); else if (ch === '\x0e') tuiHist(1);
+    else if (code >= 32) { T.buf = T.buf.slice(0, T.cur) + ch + T.buf.slice(T.cur); T.cur += ch.length; T.sel = 0; }
+  }
+  tuiDraw();
+}
+function tuiHist(d) {
+  if (!T.hist.length) return; T.hi = Math.max(0, Math.min(T.hist.length, (T.hi == null ? T.hist.length : T.hi) + d));
+  T.buf = T.hist[T.hi] || ''; T.cur = T.buf.length; T.sel = 0;
+}
+function tuiSeq(q) {
+  const sg = () => suggestions();
+  if (q === 'A') { const s = sg(); if (s.list.length && T.buf) T.sel = (T.sel - 1 + s.list.length) % s.list.length; else tuiHist(-1); }
+  else if (q === 'B') { const s = sg(); if (s.list.length && T.buf) T.sel = (T.sel + 1) % s.list.length; else tuiHist(1); }
+  else if (q === 'Z') { const s = sg(); if (s.list.length) T.sel = (T.sel - 1 + s.list.length) % s.list.length; }
+  else if (q === 'C') T.cur = Math.min(T.buf.length, T.cur + 1); else if (q === 'D') T.cur = Math.max(0, T.cur - 1);
+  else if (q === 'H' || q === '1~') T.cur = 0; else if (q === 'F' || q === '4~') T.cur = T.buf.length;
+  else if (q === '3~') T.buf = T.buf.slice(0, T.cur) + T.buf.slice(T.cur + 1);
+  else if (q === '5~') T.scroll += Math.max(3, (process.stdout.rows || 30) - 8); else if (q === '6~') T.scroll = Math.max(0, T.scroll - Math.max(3, (process.stdout.rows || 30) - 8));
+  else if (q === '11~') { T.buf = 'help'; T.cur = 4; tuiSubmit(); }
+}
+function tuiSubmit() {
+  const line = T.buf; T.buf = ''; T.cur = 0; T.sel = 0; T.hi = null; T.scroll = 0;
+  if (line.trim()) { if (T.hist[T.hist.length - 1] !== line) T.hist.push(line); if (T.hist.length > 200) T.hist.shift(); T.hi = null; out('› ' + line, A.b); }
+  runLine(line);
+}
+function tuiStart() {
+  T.on = true; T.started = T.started || Date.now();
+  if (process.stdin.setRawMode) { try { process.stdin.setRawMode(true); } catch {} }
+  process.stdin.setEncoding('utf8'); process.stdin.on('data', tuiKey); process.stdin.resume();
+  process.stdout.write('\x1b[?1049h\x1b[2J');
+  process.stdout.on('resize', tuiDraw);
+  process.on('exit', () => { if (T.on) { T.on = false; try { process.stdout.write('\x1b[?1049l\x1b[?25h'); } catch {} } });
+  process.stdin.on('end', () => { if (!process.env.LANCHAT_TUI) process.exit(0); });
+  tlog('start', `LanChat ${VERSION} – wpisz help; Tab podpowiada komendy`, A.grn);
+  tlog('url', 'Ty: http://localhost:' + listenPort, A.cyn);
+  for (const i of lanIps()) tlog('url', 'Goście w LAN: http://' + i.address + ':' + listenPort, A.cyn);
+  tlog('dane', DATA, A.gry);
+}
+
 // ---------- start ----------
 function openBrowser(url) {
   try {
@@ -936,12 +1238,15 @@ function start(port, tries) {
   server.listen(port, '0.0.0.0', () => {
     listenPort = port;
     udp.bind(DISC_PORT, '0.0.0.0', () => { try { udp.setBroadcast(true); } catch {} });
-    console.log(`\n  LanChat ${VERSION}\n  Admin (to urządzenie):  http://localhost:${port}`);
-    for (const i of lanIps()) console.log(`  Goście w LAN:           http://${i.address}:${port}`);
-    console.log('\n  Dane: ' + DATA + '   |   Ctrl+C aby zakończyć\n');
+    if (tuiWanted()) tuiStart();
+    else {
+      console.log(`\n  LanChat ${VERSION}\n  Admin (to urządzenie):  http://localhost:${port}`);
+      for (const i of lanIps()) console.log(`  Goście w LAN:           http://${i.address}:${port}`);
+      console.log('\n  Dane: ' + DATA + '   |   Ctrl+C aby zakończyć\n');
+    }
     if (settings.openBrowser && !process.argv.includes('--no-open')) openBrowser(`http://localhost:${port}`);
   });
 }
 module.exports = { _rooms: rooms };
 start(settings.port, 0);
-process.on('uncaughtException', e => console.error('Błąd:', e.message));
+process.on('uncaughtException', e => { if (T.on) tlog('błąd', e.message, A.red); else console.error('Błąd:', e.message); });
