@@ -43,7 +43,7 @@ function saveRoomsNow() {
   writeAtomic(ROOMS_FILE, JSON.stringify([...rooms.values()].map(r => ({
     code: r.code, name: r.name, password: r.password, isPublic: r.isPublic, hostKey: r.hostKey, created: r.created,
     history: r.history, bans: [...r.bans], muted: [...r.muted], mods: [...r.mods], stickers: r.stickers,
-    mediaBytes: r.mediaBytes, topic: r.topic, slow: r.slow, mediaTypes: r.mediaTypes, hashes: r.hashes, icon: r.icon || '',
+    mediaBytes: r.mediaBytes, topic: r.topic, slow: r.slow, mediaTypes: r.mediaTypes, hashes: r.hashes, icon: r.icon || '', owner: r.owner || '',
     members: [...r.members.values()], banNames: r.banNames, joinLock: !!r.joinLock, maxUsers: r.maxUsers || 0,
   }))));
 }
@@ -181,10 +181,10 @@ function attachWs(sock, onMsg, onClose) {
 // Poziomy uprawnień: admin (ukryty, incognito) > host (twórca) > moderator > użytkownik.
 const LVL = { user: 0, mod: 1, host: 2, admin: 3 };
 const AFK_MS = +process.env.LANCHAT_AFK_MS || 10 * 60 * 1000;   // po rozłączeniu najpierw „AFK”, po 10 minutach „Niedostępny” (członkostwo zostaje!)
-function createRoom({ name, password, isPublic }) {
+function createRoom({ name, password, isPublic, owner }) {
   const code = newCode();
   const r = {
-    code, name: clip(name, 40) || 'Pokój ' + code, password: clip(password, 64), isPublic: !!isPublic,
+    code, name: clip(name, 40) || 'Pokój ' + code, password: clip(password, 64), isPublic: !!isPublic, owner: owner || '',
     hostKey: rid(16), created: Date.now(), clients: new Map(), history: [], bans: new Set(), banNames: {},
     muted: new Set(), mods: new Set(), members: new Map(), stickers: [], mediaBytes: 0, topic: '', slow: 0,
     joinLock: false, maxUsers: 0, mediaTypes: {}, hashes: {},
@@ -379,6 +379,7 @@ function handleMsg(c, m) {
       return post(c, m);
     }
     case 'msg': case 'img': case 'sticker': return post(c, m);
+    case 'console': return consoleRun(c, clip(m.line, 500));
     case 'typing': return broadcast(r, { t: 'typing', uid: c.id, name: c.name }, c);
     case 'profile': {
       if ('name' in m) c.name = clip(m.name, 24).trim() || c.name;
@@ -465,6 +466,56 @@ function handleMsg(c, m) {
       return;
     }
   }
+}
+
+// ---------- konsola pokoju (host / moderator): komendy tylko dla własnego pokoju – bez IP, bez ustawień serwera ----------
+// Uprawnienia są sprawdzane tak samo jak przy przyciskach w aplikacji (te same handlery), a poziomy wyższe zawsze wygrywają.
+const RC = { help: 0, info: 0, code: 0, users: 0, members: 0, history: 0, kick: 1, mute: 1, unmute: 1, topic: 1, say: 1,
+  ban: 2, unban: 2, bans: 2, mod: 2, unmod: 2, rename: 2, slow: 2, lock: 2, limit: 2, public: 2, password: 2, clear: 2, close: 2 };
+const RC_HELP = { help: 'lista komend', info: 'informacje o pokoju', code: 'kod i adres do zaproszenia', users: 'kto jest teraz online', members: 'wszyscy członkowie (też AFK)', history: 'history [ile] – ostatnie wiadomości',
+  kick: 'kick <osoba> – wyrzuć', mute: 'mute <osoba> – wycisz', unmute: 'unmute <osoba> – zdejmij wyciszenie', topic: 'topic <tekst> – temat pokoju', say: 'say <tekst> – ogłoszenie w pokoju',
+  ban: 'ban <osoba> – zbanuj', unban: 'unban <osoba|id> – odbanuj', bans: 'lista banów', mod: 'mod <osoba> – nadaj moderatora', unmod: 'unmod <osoba> – odbierz moderatora', rename: 'rename <nazwa> – zmień nazwę',
+  slow: 'slow <sekundy> – tryb powolny (0 = wył.)', lock: 'lock on|off – blokada dołączania', limit: 'limit <liczba> – limit osób (0 = brak)', public: 'public on|off – widoczność w „Odkrywaj”',
+  password: 'password <hasło|none> – hasło pokoju', clear: 'wyczyść historię czatu', close: 'zamknij pokój na stałe' };
+function consoleRun(c, line) {
+  const r = c.room, out = [], L = lvl(r, c.id), now = Date.now();
+  const P = (k, t) => out.push({ k, t }), ok = t => P('ok', t), er = t => P('err', t), ln = t => P('out', t);
+  const done = () => { try { wsSend(c.sock, JSON.stringify({ t: 'console', lines: out })); } catch {} };
+  c.cst = (c.cst || []).filter(t => now - t < 5000); if (c.cst.length >= 10) { er('Zwolnij – za dużo komend naraz.'); return done(); } c.cst.push(now);
+  if (L < 1) { er('Konsola jest dostępna dla hosta i moderatorów.'); return done(); }
+  const toks = tokenize(String(line || '')); if (!toks.length) return done();
+  if (c.pend && now - c.pend.t < 30000) { const f = c.pend.fn; c.pend = null; if (/^(t|tak|y|yes)$/i.test(toks[0].v)) f(); else ln('Anulowano.'); return done(); }
+  c.pend = null;
+  const name = toks[0].v.toLowerCase(), a = toks.slice(1).map(x => x.v), raw = i => (toks[i + 1] ? String(line).slice(toks[i + 1].s) : '').trim();
+  if (!Object.prototype.hasOwnProperty.call(RC, name)) { er('Nieznana komenda: ' + name + ' – wpisz help'); return done(); }
+  if (L < RC[name]) { er('Ta komenda wymaga roli hosta.'); return done(); }
+  tlog('konsola', c.name + ' @' + r.name + ': ' + (name === 'password' ? 'password ***' : String(line).slice(0, 120)), A.gry);
+  const tgt = () => { const m = findUser(r, a[0]); if (!m) { er('Nie znaleziono osoby: ' + (a[0] || '?')); return null; } if (m.id === c.id || L <= lvl(r, m.id)) { er('Nie można wykonać tej akcji.'); return null; } return m; };
+  const room = (act, value) => handle(c, { t: 'room', act, value });
+  const ask = (q, fn) => { c.pend = { t: now, fn }; P('warn', q + ' Wpisz „tak”, aby potwierdzić.'); };
+  switch (name) {
+    case 'help': for (const k of Object.keys(RC)) if (L >= RC[k]) ln(k.padEnd(9) + ' ' + RC_HELP[k]); break;
+    case 'info': [['Nazwa', r.name], ['Kod', r.code], ['Temat', r.topic || '(brak)'], ['Hasło', r.password ? 'tak' : 'nie'], ['Publiczny', r.isPublic ? 'tak' : 'nie'], ['Blokada dołączania', r.joinLock ? 'tak' : 'nie'], ['Limit osób', r.maxUsers || 'brak'], ['Tryb powolny', r.slow ? r.slow + ' s' : 'wyłączony'], ['Online / członków', r.clients.size + ' / ' + r.members.size], ['Moderatorzy', r.mods.size], ['Banów', r.bans.size], ['Wiadomości', r.history.length]].forEach(([k, v]) => ln(k.padEnd(20) + v)); break;
+    case 'code': ln('Kod pokoju: ' + r.code); for (const i of lanIps()) ln('Adres: http://' + i.address + ':' + listenPort + '/#' + r.code); break;
+    case 'users': for (const x of r.clients.values()) ln(x.name.padEnd(20) + x.status.padEnd(8) + shownRole(r, x.id, false)); if (!r.clients.size) ln('(nikogo)'); break;
+    case 'members': for (const m of r.members.values()) ln(m.name.padEnd(20) + presenceOf(r, m).padEnd(9) + shownRole(r, m.id, false) + (r.muted.has(m.id) ? '  wyciszony' : '')); break;
+    case 'history': for (const m of r.history.slice(-Math.min(50, parseInt(a[0], 10) || 15))) ln(new Date(m.ts).toTimeString().slice(0, 5) + ' ' + (m.kind === 'sys' ? '· ' + m.text : m.name + ': ' + (m.text || '[' + m.kind + ']'))); break;
+    case 'kick': case 'mute': case 'unmute': case 'ban': { const m = tgt(); if (!m) break; handle(c, { t: 'mod', act: name, uid: m.id }); ok(name + ': ' + m.name); break; }
+    case 'mod': case 'unmod': { const m = tgt(); if (!m) break; handle(c, { t: 'mod', act: name === 'mod' ? 'promote' : 'demote', uid: m.id }); ok(name + ': ' + m.name); break; }
+    case 'unban': { const q = String(a[0] || '').toLowerCase(), k = [...r.bans].find(id => id === q || (r.banNames[id] || '').toLowerCase() === q); if (!k) { er('Nie ma takiego bana (zobacz: bans)'); break; } r.bans.delete(k); delete r.banNames[k]; scheduleSave(); ok('Odbanowano ' + (q || k)); break; }
+    case 'bans': for (const id of r.bans) ln(id + '  ' + (r.banNames[id] || '?')); if (!r.bans.size) ln('(brak banów)'); break;
+    case 'topic': room('topic', raw(0)); ok('Temat: ' + (raw(0) || '(brak)')); break;
+    case 'say': { const t = clip(raw(0), 400); if (!t) { er('Podaj treść, np. say Za chwilę zaczynamy'); break; } sys(r, '📢 ' + t); ok('Wysłano ogłoszenie'); break; }
+    case 'rename': { const t = clip(raw(0), 40).trim(); if (!t) { er('Podaj nową nazwę'); break; } room('rename', t); ok('Nowa nazwa: ' + t); break; }
+    case 'slow': room('slow', Math.max(0, Math.min(300, parseInt(a[0], 10) || 0))); ok('Tryb powolny ustawiony'); break;
+    case 'limit': room('limit', Math.max(0, Math.min(500, parseInt(a[0], 10) || 0))); ok('Limit osób ustawiony'); break;
+    case 'lock': room('lock', a[0] !== 'off'); ok('Blokada dołączania: ' + (a[0] !== 'off' ? 'włączona' : 'wyłączona')); break;
+    case 'public': room('public', a[0] !== 'off'); ok('Pokój publiczny: ' + (a[0] !== 'off' ? 'tak' : 'nie')); break;
+    case 'password': room('password', !a[0] || a[0] === 'none' ? '' : a[0]); ok(!a[0] || a[0] === 'none' ? 'Hasło usunięte' : 'Hasło ustawione'); break;
+    case 'clear': ask('Wyczyścić całą historię czatu?', () => { room('clear'); ok('Historia wyczyszczona'); }); break;
+    case 'close': ask('Zamknąć pokój „' + r.name + '” na stałe?', () => { room('close'); }); break;
+  }
+  done();
 }
 
 // ---------- GIF-y bez klucza: wbudowana paczka (własne animacje generowane programowo) + wyszukiwarka warstwowa ----------
@@ -845,7 +896,15 @@ const server = http.createServer(async (req, res) => {
       if (!admin && !settings.allowLanHosting) return sendJson(res, 403, { error: 'Admin wyłączył tworzenie pokoi dla gości.' });
       if (rooms.size >= settings.maxRooms) return sendJson(res, 429, { error: 'Limit pokoi osiągnięty.' });
       const b = await readJsonBody(req);
-      const r = createRoom(b);
+      let owner = '';   // właściciel = tożsamość konta (x-account); admin (localhost) nie ma limitu
+      if (!admin) {
+        const secret = String(req.headers['x-account'] || '');
+        if (!/^[\w-]{16,64}$/.test(secret)) return sendJson(res, 400, { error: 'Brak tożsamości – odśwież stronę.' });
+        owner = accId(secret);
+        const mine = [...rooms.values()].find(x => x.owner === owner);
+        if (mine) return sendJson(res, 409, { error: 'Masz już swój pokój „' + mine.name + '”. Każda osoba może mieć tylko jeden – zamknij go, aby założyć nowy.', code: mine.code });
+      }
+      const r = createRoom({ name: b.name, password: b.password, isPublic: b.isPublic, owner });
       return sendJson(res, 200, { code: r.code, hostKey: r.hostKey, name: r.name });
     }
     if (p === '/api/gif') return sendJson(res, 200, await gifSearch(u.searchParams.get('q') || ''));

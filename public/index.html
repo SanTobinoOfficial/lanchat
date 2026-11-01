@@ -383,6 +383,13 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 @media(max-width:820px){.mk-mem{display:none}.mock{height:360px}}
 @media(max-width:620px){.mk-side{display:none}.slinks{display:none}.sbrand{flex:1}.sin{gap:10px}.hstep{flex-direction:column;gap:12px}.hero{padding-top:56px}.sb{padding:12px 22px;font-size:16px}.sfoot a{margin:0 14px 0 0}}
 @media(max-width:1200px){#memBtn{display:grid}}
+.con-out{background:var(--bg3,#1e1f22);border-radius:6px;padding:10px 12px;height:min(46vh,340px);overflow:auto;font:13px/1.45 var(--code);white-space:pre-wrap;word-break:break-word}
+.con-out .ok{color:#23a55a}.con-out .err{color:#f23f43}.con-out .warn{color:#faa81a}.con-out .cmd{color:var(--head2);font-weight:700}.con-out .sys{color:var(--muted)}
+.con-in{font-family:var(--code);margin-top:8px}
+.con-sug{display:flex;flex-direction:column;margin-top:6px;max-height:156px;overflow:auto;border-radius:6px}
+.con-sug button{display:flex;gap:10px;text-align:left;padding:5px 10px;font:13px var(--code);border-radius:4px}.con-sug button span{color:var(--muted);font-family:var(--font)}
+.con-sug button.on{background:var(--hover,#35373c)}
+.con-hint{margin-top:6px;font-size:12px;color:var(--muted);min-height:16px}
 #scrim{display:none;position:fixed;inset:0;z-index:28;background:rgba(0,0,0,.55)}
 @media(max-width:900px){   /* lista osób jako szuflada z przyciemnieniem – nie zabiera miejsca na tabletach i telefonach */
   #members{position:fixed;right:0;top:0;bottom:0;z-index:30;width:min(280px,82vw);transform:translateX(100%);visibility:hidden;transition:transform .2s,visibility .2s;display:block;box-shadow:var(--shadow3)}
@@ -969,6 +976,7 @@ function onServer(C, m) {
     case 'edit': { const x = C.hist.find(h => h.id === m.mid); if (x) { x.text = m.text; x.edited = true; } if (active) { const d = document.getElementById('m' + m.mid); if (d) { const t = d.querySelector('.txt'); t.textContent = ''; t.append(renderBody(m.text), el('span', { class: 'muted', style: 'font-size:12px', text: ' (edytowano)' })); } } break; }
     case 'del': { const i = C.hist.findIndex(h => h.id === m.mid); if (i >= 0) C.hist.splice(i, 1); if (active) document.getElementById('m' + m.mid)?.remove(); break; }
     case 'typing': C.typing[m.uid] = { name: m.name, t: Date.now() }; if (active) renderTyping(); break;
+    case 'console': (C.con = C.con || []).push(...(m.lines || []).map(l => ({ k: l.k, t: String(l.t) }))); if (C.con.length > 300) C.con.splice(0, 100); if (C.conDraw) C.conDraw(); break;
     case 'notice': if (active) toast(m.text); break;
     case 'bans': if (active) showBans(C, m.list); break;
     case 'cleared': C.hist = []; C.lastMsg = null; C.lastDay = null; if (active) renderChatFull(); break;
@@ -1070,7 +1078,7 @@ function renderChan() {
         item('🔗', 'Link dla gości', () => { const o = C.addr === location.host ? (/^(localhost|127\.)/.test(location.hostname) && me.urls && me.urls[0] ? me.urls[0] : location.origin) : C.base; copy(o + '/#' + r.code, 'Skopiowano link – gość nie musi nic instalować'); }));
     }
     body.append(el('div', { class: 'cat', text: 'Pokój' }));
-    if (on && mod) body.append(item('⚙️', 'Ustawienia pokoju', roomSettings));
+    if (on && mod) body.append(item('⚙️', 'Ustawienia pokoju', roomSettings), item('⌨️', 'Konsola pokoju', openConsole));
     body.append(item('🚪', 'Opuść pokój', () => confirmBox('Opuścić „' + C.name + '”? Zniknie z Twojej listy i z listy osób w pokoju (możesz wrócić kodem).', () => leaveRoom(C), 'Opuść'), 'danger'));
   }
 }
@@ -1115,8 +1123,13 @@ function openPlus(step, preset) {
     const pub = el('input', { type: 'checkbox' }); pub.checked = true; const err = el('div', { class: 'err' });
     const body = el('div', null, field('Nazwa pokoju', n), field('Hasło', pw, '(opcjonalnie)'), el('label', { class: 'chk' }, pub, 'Pokaż w „Odkrywaj” (publiczny)'), err);
     const doCreate = async () => {
-      const r = await fetch('/api/rooms', { method: 'POST', body: JSON.stringify({ name: n.value, password: pw.value, isPublic: pub.checked }) }), j = await r.json();
-      if (!r.ok) { err.textContent = j.error || 'Błąd'; return; }
+      const r = await fetch('/api/rooms', { method: 'POST', headers: accHeaders(), body: JSON.stringify({ name: n.value, password: pw.value, isPublic: pub.checked }) }), j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        err.textContent = j.error || 'Błąd';
+        const mine = j.code && [...conns.values()].find(x => x.addr === location.host && x.code === j.code);
+        if (mine) err.append(' ', el('a', { href: '#', text: 'Przejdź do mojego pokoju', onclick: e => { e.preventDefault(); closeModal(); openRoom(mine); } }));
+        return;
+      }
       closeModal(); const C = addConn(location.host, j.code, { name: j.name, hostKey: j.hostKey, password: pw.value }); saveAccount(true); openRoom(C); connect(C);
     };
     n.onkeydown = pw.onkeydown = e => { if (e.key === 'Enter') doCreate(); };
@@ -1400,6 +1413,7 @@ function sendText() {
     if (cmd === 'me' && arg) send({ t: 'msg', text: arg, me: true, ...extra });
     else if (cmd === 'shrug') send({ t: 'msg', text: (arg + ' ¯\\_(ツ)_/¯').trim(), ...extra });
     else if (cmd === 'topic') send({ t: 'room', act: 'topic', value: arg });
+    else if (cmd === 'console' || cmd === 'konsola') openConsole();
     else if (cmd === 'nick' && arg) { account.name = arg.slice(0, 24); saveAccount(); renderUserPanel(); conns.forEach(C => sendTo(C, { t: 'profile', name: account.name })); }
     else if (cmd === 'gif') { input.value = ''; openPop('gif', arg); return; }
     else if (cmd === 'help') toast('Komendy: /me /shrug /topic /nick /gif');
@@ -1586,9 +1600,51 @@ function openInvite() {
 }
 $('#invBtn').onclick = openInvite;
 
+/* ---------- konsola pokoju (host / moderator) ---------- */
+const RCMDS = [['help', '', 'lista komend', 0], ['info', '', 'informacje o pokoju', 0], ['code', '', 'kod i adres do zaproszenia', 0], ['users', '', 'kto jest teraz online', 0], ['members', '', 'wszyscy członkowie', 0], ['history', 'ile', 'ostatnie wiadomości', 0],
+  ['kick', 'user', 'wyrzuć osobę', 1], ['mute', 'user', 'wycisz osobę', 1], ['unmute', 'user', 'zdejmij wyciszenie', 1], ['topic', 'tekst', 'ustaw temat', 1], ['say', 'tekst', 'ogłoszenie w pokoju', 1],
+  ['ban', 'user', 'zbanuj osobę', 2], ['unban', 'osoba', 'odbanuj', 2], ['bans', '', 'lista banów', 2], ['mod', 'user', 'nadaj moderatora', 2], ['unmod', 'user', 'odbierz moderatora', 2], ['rename', 'nazwa', 'zmień nazwę pokoju', 2],
+  ['slow', 'sekundy', 'tryb powolny (0 = wył.)', 2], ['lock', 'onoff', 'blokada dołączania', 2], ['limit', 'liczba', 'limit osób (0 = brak)', 2], ['public', 'onoff', 'widoczność w „Odkrywaj”', 2], ['password', 'hasło', 'hasło pokoju (none = usuń)', 2], ['clear', '', 'wyczyść historię czatu', 2], ['close', '', 'zamknij pokój na stałe', 2]];
+function openConsole() {
+  const C = cur; if (!C || !C.st) return;
+  const LV = { user: 0, mod: 1, host: 2, admin: 3 }, myLv = () => LV[myRole(C.st)] || 0;
+  if (myLv() < 1) return toast('Konsola jest dostępna dla hosta i moderatorów');
+  C.con = C.con || [{ k: 'sys', t: 'Konsola pokoju „' + C.name + '”. Wpisz help. Tab uzupełnia, ↑/↓ wybierają podpowiedź lub historię.' }]; C.conHist = C.conHist || []; let hi = null, sel = 0, items = [];
+  const outEl = el('div', { class: 'con-out' }), input = el('input', { class: 'inp con-in', placeholder: 'komenda… (np. kick, topic, slow)', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' }), sug = el('div', { class: 'con-sug' }), hint = el('div', { class: 'con-hint' });
+  const draw = () => { if (!outEl.isConnected) return; outEl.textContent = ''; C.con.forEach(l => outEl.append(el('div', { class: l.k, text: l.t }))); outEl.scrollTop = outEl.scrollHeight; };
+  C.conDraw = draw;
+  const q = v => /\s/.test(v) ? '"' + v + '"' : v;
+  const calc = () => {
+    const v = input.value.slice(0, input.selectionStart), endSp = /\s$/.test(v) || !v, toks = (v.match(/"[^"]*"?|\S+/g) || []), idx = endSp ? toks.length : toks.length - 1, cur0 = endSp ? '' : toks[toks.length - 1].replace(/^"/, '').toLowerCase(), avail = RCMDS.filter(c => c[3] <= myLv());
+    let list = [];
+    if (idx === 0) list = avail.map(c => ({ v: c[0], d: c[2] }));
+    else { const c = avail.find(x => x[0] === toks[0].toLowerCase()); const t = c && c[1];
+      if (t === 'user' || t === 'osoba') list = (C.st.users || []).filter(u => u.id !== C.st.you.id).map(u => ({ v: q(u.name), d: u.status || '' }));
+      else if (t === 'onoff') list = [{ v: 'on', d: 'włącz' }, { v: 'off', d: 'wyłącz' }]; else if (t === 'hasło') list = [{ v: 'none', d: 'usuń hasło' }];
+      hint.textContent = c ? c[0] + (c[1] ? ' <' + c[1] + '>' : '') + ' – ' + c[2] : ''; }
+    if (idx === 0) hint.textContent = '';
+    const st = list.filter(x => x.v.replace(/^"/, '').toLowerCase().startsWith(cur0)), inc = list.filter(x => !st.includes(x) && x.v.toLowerCase().includes(cur0));
+    items = (cur0 ? [...st, ...inc] : list).slice(0, 30); if (items.length === 1 && items[0].v.toLowerCase() === cur0) items = []; sel = Math.min(sel, Math.max(0, items.length - 1));
+    return { endSp, toks };
+  };
+  const paint = () => { const { } = calc(); sug.textContent = ''; items.slice(0, 8).forEach((it, k) => sug.append(el('button', { type: 'button', class: k === sel ? 'on' : '', onmousedown: e => { e.preventDefault(); accept(k); } }, it.v, el('span', { text: it.d })))); };
+  const accept = k => { const it = items[k == null ? sel : k]; if (!it) return false; const { endSp, toks } = calc(), pos = input.selectionStart, before = input.value.slice(0, pos), start = endSp ? before.length : before.length - toks[toks.length - 1].length; input.value = before.slice(0, start) + it.v + ' ' + input.value.slice(pos).replace(/^\S*\s*/, ''); const e = start + it.v.length + 1; input.setSelectionRange(e, e); sel = 0; paint(); return true; };
+  const submit = () => { const line = input.value.trim(); if (!line) return; input.value = ''; hi = null; sel = 0; if (C.conHist[C.conHist.length - 1] !== line) C.conHist.push(line); C.con.push({ k: 'cmd', t: '› ' + (/^password\b/i.test(line) ? 'password ***' : line) }); if (C.con.length > 300) C.con.splice(0, 100); draw(); paint(); sendTo(C, { t: 'console', line }); };
+  input.oninput = paint; input.onclick = paint;
+  input.onkeydown = e => {
+    if (e.key === 'Tab') { e.preventDefault(); calc(); if (items.length) accept(); return; }
+    if (e.key === 'Enter') { e.preventDefault(); return submit(); }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const d = e.key === 'ArrowUp' ? -1 : 1; calc();
+      if (items.length && input.value) { sel = (sel + d + Math.min(items.length, 8)) % Math.min(items.length, 8); return paint(); }
+      if (!C.conHist.length) return; hi = Math.max(0, Math.min(C.conHist.length, (hi == null ? C.conHist.length : hi) + d)); input.value = C.conHist[hi] || ''; return paint(); }
+  };
+  dialog({ title: 'Konsola pokoju', sub: 'Komendy działają tylko w tym pokoju. Nie pokazują adresów IP ani ustawień serwera.', size: 'wide', body: el('div', null, outEl, input, sug, hint), buttons: [{ text: 'Zamknij', cls: 'sec', onclick: () => { C.conDraw = null; } }] });
+  draw(); paint(); setTimeout(() => input.focus(), 30);
+}
+
 // podpowiedzi przy pisaniu: @osoba, :emotka, /komenda
 const ac = $('#ac'); let acItems = [], acIdx = 0, acTok = 0;
-const CMDS = [['me', '/me tekst', 'napisz w trzeciej osobie'], ['shrug', '/shrug', '¯\\_(ツ)_/¯'], ['topic', '/topic temat', 'ustaw temat pokoju'], ['nick', '/nick nazwa', 'zmień nick'], ['gif', '/gif fraza', 'szukaj GIF-a'], ['help', '/help', 'lista komend']];
+const CMDS = [['me', '/me tekst', 'napisz w trzeciej osobie'], ['shrug', '/shrug', '¯\\_(ツ)_/¯'], ['topic', '/topic temat', 'ustaw temat pokoju'], ['nick', '/nick nazwa', 'zmień nick'], ['gif', '/gif fraza', 'szukaj GIF-a'], ['console', '/console', 'konsola pokoju (host/moderator)'], ['help', '/help', 'lista komend']];
 function acClose() { ac.hidden = true; acItems = []; }
 function acDraw() { ac.textContent = ''; acItems.forEach((it, k) => ac.append(el('button', { class: k === acIdx ? 'on' : '', onmousedown: e => { e.preventDefault(); acAccept(k); } }, it.icon, el('span', { text: it.label }), it.hint ? el('small', { text: it.hint }) : null))); ac.hidden = !acItems.length; }
 function acAccept(k) { const it = acItems[k]; if (!it) return; const pos = input.selectionStart; input.setRangeText(it.ins, pos - acTok, pos, 'end'); acClose(); input.dispatchEvent(new Event('input')); input.focus(); }
