@@ -1,8 +1,8 @@
 #!/bin/sh
 # LanChat - instalator Linux/macOS. Bez sudo, bez zaleznosci poza curl.
-#   curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/SanTobinoOfficial/lanchat/main/install.sh | sh
 set -e
-REPO="${LANCHAT_REPO:-OWNER/REPO}"
+REPO="${LANCHAT_REPO:-SanTobinoOfficial/lanchat}"
 case "$(uname -s)" in Linux) os=linux;; Darwin) os=macos;; *) echo "Nieobslugiwany system: $(uname -s)"; exit 1;; esac
 case "$(uname -m)" in x86_64|amd64) arch=x64;; arm64|aarch64) arch=arm64;; *) echo "Nieobslugiwana architektura: $(uname -m)"; exit 1;; esac
 dir="$HOME/.local/bin"; mkdir -p "$dir"

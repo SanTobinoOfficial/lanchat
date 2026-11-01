@@ -1,8 +1,8 @@
 # LanChat - instalator Windows. Bez UAC, bez zaleznosci, bez zmian w zaporze i ustawieniach sieci.
-#   irm https://raw.githubusercontent.com/OWNER/REPO/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/SanTobinoOfficial/lanchat/main/install.ps1 | iex
 $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$repo = if ($env:LANCHAT_REPO) { $env:LANCHAT_REPO } else { 'OWNER/REPO' }
+$repo = if ($env:LANCHAT_REPO) { $env:LANCHAT_REPO } else { 'SanTobinoOfficial/lanchat' }
 $dir  = Join-Path $env:LOCALAPPDATA 'LanChat'
 New-Item -ItemType Directory -Force $dir | Out-Null
 $exe  = Join-Path $dir 'lanchat.exe'

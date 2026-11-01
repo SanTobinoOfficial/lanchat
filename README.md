@@ -4,15 +4,15 @@ Prywatny czat w stylu Discorda dla Twojej sieci lokalnej. Jedna osoba go urucham
 ## Instalacja jedną komendą (bez UAC, bez zależności)
 Windows (PowerShell – nie musi być „jako administrator”):
 ```powershell
-irm https://raw.githubusercontent.com/OWNER/REPO/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/SanTobinoOfficial/lanchat/main/install.ps1 | iex
 ```
 Linux / macOS:
 ```sh
-curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/SanTobinoOfficial/lanchat/main/install.sh | sh
 ```
 Instalator pobiera jeden plik z najnowszego wydania do profilu użytkownika (`%LOCALAPPDATA%\LanChat` / `~/.local/bin`), nie rusza zapory ani ustawień sieci, dodaje skróty i polecenie `lanchat`, po czym uruchamia aplikację. Ponowne uruchomienie komendy = aktualizacja. Zmienne: `LANCHAT_BASE` (własne lustro plików), `LANCHAT_NO_LAUNCH=1` (tylko zainstaluj).
 
-> Po sklonowaniu repozytorium zamień `OWNER/REPO` na własne: `node tools/set-repo.js WLASCICIEL/REPO` (podstawia w instalatorach i README).
+> Robisz własnego forka? Podmień repozytorium w instalatorach i README jedną komendą: `node tools/set-repo.js WLASCICIEL/REPO`.
 
 ## Jak to działa dla ludzi
 - **Admin** (jedyna osoba, która dotyka terminala) uruchamia LanChat. Na stronie głównej dostaje link do wysłania znajomym, np. `http://192.168.1.20:7777`.
