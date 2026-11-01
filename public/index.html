@@ -47,7 +47,7 @@ textarea.inp{height:auto;resize:vertical;min-height:72px;line-height:1.4}
 .muted{color:var(--muted);font-size:14px}
 .err{color:var(--red);font-size:14px;min-height:20px;margin-top:6px}
 .tag{display:inline-block;font-size:10px;font-weight:600;line-height:15px;padding:0 4px;border-radius:3px;background:var(--brand);color:#fff;vertical-align:middle;text-transform:uppercase;margin-left:4px}
-.tag.host{background:#c27c0e}.tag.mod{background:var(--green)}
+.tag.host{background:#c27c0e}.tag.mod{background:var(--green)}.tag.bot{background:#10a37f}
 .code{font-family:var(--code);letter-spacing:2px;color:var(--head1)}
 
 /* metody zapisu profilu */
@@ -1239,7 +1239,7 @@ function renderBody(s) {
   });
   return f;
 }
-const ROLE = { admin: 'Admin', host: 'Host', mod: 'Mod' };
+const ROLE = { admin: 'Admin', host: 'Host', mod: 'Mod', bot: 'AI' };
 function renderMembers() {
   const box = $('#memberList'); box.textContent = ''; const S = curSt(); if (!S) return;
   // obecność: najpierw Online, potem AFK (nieaktywni lub dopiero co rozłączeni), na końcu Niedostępni.
@@ -1443,6 +1443,7 @@ function sendText() {
       case 'unflip': say((arg + ' ┬─┬ ノ( ゜-゜ノ)').trim()); break;
       case 'lenny': say((arg + ' ( ͡° ͜ʖ ͡°)').trim()); break;
       case 'gif': input.value = ''; openPop('gif', arg); return;
+      case 'ai': if (!arg) res = bad('/ai Jak działa Wi-Fi?'); else if (!(cur.st && cur.st.room.ai)) { toast('AI jest wyłączone (admin nie ustawił klucza albo host je wyłączył)'); res = 'keep'; } else send({ t: 'ai', prompt: arg }); break;
       case 'roll': { const m = /^(\d{1,2})?d(\d{1,4})$/i.exec(arg || '1d6'), n = m ? +(m[1] || 1) : 0, s = m ? +m[2] : 0;
         if (!m || n < 1 || n > 20 || s < 2 || s > 1000) { res = bad('/roll 2d6  (1–20 kości, 2–1000 oczek)'); break; }
         const r = Array.from({ length: n }, () => rnd(s)); say('🎲 rzuca ' + n + 'd' + s + ': ' + r.join(' + ') + (n > 1 ? ' = ' + r.reduce((a, b) => a + b, 0) : ''), true); break; }
@@ -1579,9 +1580,14 @@ $('#adminBtn').onclick = () => {
       el('label', { class: 'chk' }, lan, 'Goście z LAN mogą tworzyć pokoje'), el('label', { class: 'chk' }, srv, 'Serwuj instalator jedną komendą (dla drugiego administratora)'),
       s.autostart && s.autostart.supported ? el('label', { class: 'chk' }, asu, 'Uruchamiaj LanChat automatycznie po zalogowaniu do Windows (bez uprawnień administratora)') : null,
       ...[['Twoja nazwa hosta', 'hostName'], ['Maks. pokoi', 'maxRooms'], ['Maks. osób w pokoju', 'maxUsersPerRoom'], ['Limit pliku (MB)', 'uploadLimitMB'], ['Klucz Giphy (opcjonalny – GIF-y działają i bez niego)', 'giphyKey']].map(([l, k]) => field(l, f[k])));
+    const ai = { openrouterKey: el('input', { class: 'inp', value: cfg.openrouterKey, placeholder: 'sk-or-… (klucz z openrouter.ai/keys)', autocomplete: 'off' }), aiModel: el('input', { class: 'inp', value: cfg.aiModel, placeholder: 'openrouter/auto' }), aiDailyLimit: el('input', { class: 'inp', type: 'number', value: cfg.aiDailyLimit }) };
+    const aiOn = el('input', { type: 'checkbox' }); aiOn.checked = cfg.aiEnabled !== false; const aiCtx = el('input', { type: 'checkbox' }); aiCtx.checked = !!cfg.aiContext;
+    body.append(el('div', { class: 'cat', style: 'padding-left:0', text: 'AI (OpenRouter) – komenda /ai' }), el('div', { class: 'muted', style: 'margin-bottom:8px', text: 'Klucz zostaje tylko na tym komputerze – goście pytają przez serwer i nie widzą go. Koszty zapytań liczy OpenRouter na Twoim koncie; limit dzienny i limity na osobę (1 pytanie / 8 s, 15 / godz.) ograniczają zużycie. Dziś: ' + ((s.ai && s.ai.used) || 0) + ' / ' + cfg.aiDailyLimit + '.' }),
+      el('label', { class: 'chk' }, aiOn, 'Włącz /ai dla gości'), field('Klucz OpenRouter', ai.openrouterKey), field('Model', ai.aiModel, '(openrouter/auto wybiera sam; możesz wpisać np. meta-llama/llama-3.3-70b-instruct:free)'), field('Dzienny limit zapytań', ai.aiDailyLimit),
+      el('label', { class: 'chk' }, aiCtx, 'Dołączaj 10 ostatnich wiadomości pokoju jako kontekst (trafiają wtedy do OpenRouter)'));
     body.append(el('div', { class: 'cat', style: 'padding-left:0', text: 'Zbanowane IP' })); if (!cfg.bannedIps.length) body.append(el('div', { class: 'muted', text: 'Brak.' }));
     for (const ip of cfg.bannedIps) body.append(el('div', { class: 'row', style: 'margin:4px 0' }, el('span', { style: 'flex:1', text: ip }), el('button', { class: 'btn sec sm', text: 'Odbanuj', onclick: async () => { await api('unban', { ip }); draw(); } })));
-    dialog({ title: '🛡️ Panel admina', body, size: 'wide', buttons: [{ text: 'Zamknij', cls: 'link' }, { text: 'Zapisz ustawienia', onclick: () => { const b = { allowLanHosting: lan.checked, serveInstaller: srv.checked }; for (const k in f) b[k] = f[k].value; api('settings', b).then(async () => { me = await (await fetch('/api/me')).json(); toast('Zapisano'); }); } }] });
+    dialog({ title: '🛡️ Panel admina', body, size: 'wide', buttons: [{ text: 'Zamknij', cls: 'link' }, { text: 'Zapisz ustawienia', onclick: () => { const b = { allowLanHosting: lan.checked, serveInstaller: srv.checked, aiEnabled: aiOn.checked, aiContext: aiCtx.checked }; for (const k in f) b[k] = f[k].value; for (const k in ai) b[k] = ai[k].value; api('settings', b).then(async () => { me = await (await fetch('/api/me')).json(); toast('Zapisano'); }); } }] });
   }
   draw();
 };
@@ -1658,7 +1664,7 @@ $('#invBtn').onclick = openInvite;
 
 /* ---------- konsola pokoju (host / moderator) ---------- */
 const RCMDS = [['help', '', 'lista komend', 0], ['info', '', 'informacje o pokoju', 0], ['code', '', 'kod i adres do zaproszenia', 0], ['users', '', 'kto jest teraz online', 0], ['members', '', 'wszyscy członkowie', 0], ['history', 'ile', 'ostatnie wiadomości', 0],
-  ['kick', 'user', 'wyrzuć osobę', 1], ['mute', 'user', 'wycisz osobę', 1], ['unmute', 'user', 'zdejmij wyciszenie', 1], ['topic', 'tekst', 'ustaw temat', 1], ['say', 'tekst', 'ogłoszenie w pokoju', 1],
+  ['ai', 'onoff', 'AI w pokoju (on/off: host)', 1], ['cmd', 'add|del|list', 'własne komendy pokoju (add/del: host)', 1], ['kick', 'user', 'wyrzuć osobę', 1], ['mute', 'user', 'wycisz osobę', 1], ['unmute', 'user', 'zdejmij wyciszenie', 1], ['topic', 'tekst', 'ustaw temat', 1], ['say', 'tekst', 'ogłoszenie w pokoju', 1],
   ['ban', 'user', 'zbanuj osobę', 2], ['unban', 'osoba', 'odbanuj', 2], ['bans', '', 'lista banów', 2], ['mod', 'user', 'nadaj moderatora', 2], ['unmod', 'user', 'odbierz moderatora', 2], ['rename', 'nazwa', 'zmień nazwę pokoju', 2],
   ['slow', 'sekundy', 'tryb powolny (0 = wył.)', 2], ['lock', 'onoff', 'blokada dołączania', 2], ['limit', 'liczba', 'limit osób (0 = brak)', 2], ['public', 'onoff', 'widoczność w „Odkrywaj”', 2], ['password', 'hasło', 'hasło pokoju (none = usuń)', 2], ['clear', '', 'wyczyść historię czatu', 2], ['close', '', 'zamknij pokój na stałe', 2]];
 function openConsole() {
@@ -1700,10 +1706,10 @@ function openConsole() {
 
 // podpowiedzi przy pisaniu: @osoba, :emotka, /komenda
 const ac = $('#ac'); let acItems = [], acIdx = 0, acTok = 0;
-const BUILTIN_CMDS = ['me', 'shrug', 'tableflip', 'unflip', 'lenny', 'roll', 'flip', '8ball', 'choose', 'topic', 'nick', 'gif', 'help', 'commands', 'komendy', 'console', 'konsola', 'afk', 'dnd', 'online', 'search', 'users', 'invite', 'code', 'theme', 'color', 'bio', 'leave', 'whoami', 'time', 'cmd',
+const BUILTIN_CMDS = ['ai', 'me', 'shrug', 'tableflip', 'unflip', 'lenny', 'roll', 'flip', '8ball', 'choose', 'topic', 'nick', 'gif', 'help', 'commands', 'komendy', 'console', 'konsola', 'afk', 'dnd', 'online', 'search', 'users', 'invite', 'code', 'theme', 'color', 'bio', 'leave', 'whoami', 'time', 'cmd',
   'kick', 'mute', 'unmute', 'ban', 'unban', 'bans', 'mod', 'unmod', 'slow', 'lock', 'limit', 'public', 'password', 'rename', 'say', 'clear', 'close'];
 // [nazwa, użycie, opis, grupa, minimalny poziom (0 = każdy, 1 = moderator, 2 = host)]
-const SLASH = [['me', '/me tekst', 'napisz w trzeciej osobie', 'Czat', 0], ['shrug', '/shrug [tekst]', '¯\\_(ツ)_/¯', 'Czat', 0], ['tableflip', '/tableflip', '(╯°□°)╯︵ ┻━┻', 'Czat', 0], ['unflip', '/unflip', '┬─┬ ノ( ゜-゜ノ)', 'Czat', 0], ['lenny', '/lenny', '( ͡° ͜ʖ ͡°)', 'Czat', 0], ['gif', '/gif fraza', 'szukaj GIF-a', 'Czat', 0],
+const SLASH = [['ai', '/ai pytanie', 'zapytaj AI (odpowiada serwer)', 'Czat', 0], ['me', '/me tekst', 'napisz w trzeciej osobie', 'Czat', 0], ['shrug', '/shrug [tekst]', '¯\\_(ツ)_/¯', 'Czat', 0], ['tableflip', '/tableflip', '(╯°□°)╯︵ ┻━┻', 'Czat', 0], ['unflip', '/unflip', '┬─┬ ノ( ゜-゜ノ)', 'Czat', 0], ['lenny', '/lenny', '( ͡° ͜ʖ ͡°)', 'Czat', 0], ['gif', '/gif fraza', 'szukaj GIF-a', 'Czat', 0],
   ['roll', '/roll [2d6]', 'rzuć kośćmi (domyślnie 1d6)', 'Zabawa', 0], ['flip', '/flip', 'rzuć monetą', 'Zabawa', 0], ['8ball', '/8ball pytanie', 'zapytaj magiczną kulę', 'Zabawa', 0], ['choose', '/choose a | b | c', 'wylosuj jedną z opcji', 'Zabawa', 0],
   ['online', '/online', 'ustaw status: online', 'Profil', 0], ['afk', '/afk', 'ustaw status: AFK', 'Profil', 0], ['dnd', '/dnd', 'ustaw status: nie przeszkadzać', 'Profil', 0], ['nick', '/nick nazwa', 'zmień nick', 'Profil', 0], ['bio', '/bio tekst', 'zmień opis profilu', 'Profil', 0], ['color', '/color #rrggbb', 'zmień kolor nicku', 'Profil', 0], ['theme', '/theme [dark|light]', 'zmień motyw', 'Profil', 0], ['whoami', '/whoami', 'kim jesteś w tym pokoju', 'Profil', 0],
   ['search', '/search fraza', 'szukaj w tym czacie', 'Pokój', 0], ['users', '/users', 'pokaż listę osób', 'Pokój', 0], ['invite', '/invite', 'zaproś do pokoju', 'Pokój', 0], ['code', '/code', 'skopiuj kod pokoju', 'Pokój', 0], ['time', '/time', 'aktualny czas', 'Pokój', 0], ['leave', '/leave', 'opuść pokój', 'Pokój', 0],
@@ -1715,7 +1721,7 @@ const myLvl = () => ({ user: 0, mod: 1, host: 2, admin: 3 })[cur && cur.st ? myR
 const ballAnswers = ['Zdecydowanie tak.', 'Tak.', 'Wygląda na to, że tak.', 'Bez wątpienia.', 'Raczej tak.', 'Zapytaj później.', 'Nie mogę teraz powiedzieć.', 'Nie liczyłbym na to.', 'Raczej nie.', 'Moje źródła mówią: nie.', 'Zdecydowanie nie.', 'Bardzo wątpliwe.'];
 const rnd = n => 1 + crypto.getRandomValues(new Uint32Array(1))[0] % n;
 function allSlash() {   // wbudowane (wg roli) + komendy pokoju + moje własne
-  const lv = myLvl(), out = SLASH.filter(c => c[4] <= lv).map(c => ({ n: c[0], u: c[1], d: c[2], g: c[3] }));
+  const lv = myLvl(), aiOn = !!(cur && cur.st && cur.st.room.ai), out = SLASH.filter(c => c[4] <= lv && (c[0] !== 'ai' || aiOn)).map(c => ({ n: c[0], u: c[1], d: c[2], g: c[3] }));
   const mine = new Set((account.cmds || []).map(c => c.name));
   const room = cur && cur.st && cur.st.room && cur.st.room.cmds ? cur.st.room.cmds : {};
   for (const [n, t] of Object.entries(room)) if (!mine.has(n)) out.push({ n, u: '/' + n + ' [tekst]', d: t, g: 'Komendy pokoju' });

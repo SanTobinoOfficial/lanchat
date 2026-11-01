@@ -49,6 +49,9 @@ Okno, w którym działa LanChat, jest konsolą admina (TUI) – lokalną, bez ud
 ## Komendy w czacie i własne komendy
 Wpisz **/** w polu wiadomości: pojawią się podpowiedzi (**/help** pokazuje wszystko z opisami). Są komendy zabawowe (`/roll 2d6`, `/flip`, `/8ball`, `/choose a | b`), profilu (`/nick`, `/bio`, `/color`, `/theme`, `/afk`), pokoju (`/search`, `/invite`, `/code`, `/users`) i moderacji (`/kick`, `/mute`, `/slow`… – dla moderatorów i hosta). **Własne komendy:** Ustawienia → Moje komendy, np. `gg` → „Dobra gra, {args}! – {me}”; host dodaje komendy pokoju: `/cmd add zasady Szanujemy się`. Aby wysłać tekst zaczynający się od „/”, wpisz „//”.
 
+## AI w czacie (/ai)
+Admin wpisuje klucz z openrouter.ai/keys w panelu admina (🛡️) lub w konsoli: `set openrouterKey sk-or-…` (sprawdzisz: `ai`, `ai test`). Wtedy każdy może napisać `/ai pytanie` – zapytanie wysyła serwer, więc goście nie potrzebują klucza i go nie widzą. Koszty liczy OpenRouter na koncie admina; limity ograniczają zużycie. **Prywatność:** treść pytań trafia do OpenRouter (a z włączonym kontekstem także 10 ostatnich wiadomości pokoju). Klucz jest zapisany jawnym tekstem w `~/.lanchat/settings.json` (jak klucz Giphy) – chroń ten folder.
+
 ## Próba instalacji w czystym Windows (bez admina)
 `toolssandboxStart-InstallTest.ps1` otwiera Windows Sandbox z kontem standardowym i gotową komendą (tryb `-Local` bez internetu) – patrz tools/sandbox/README.md.
 
